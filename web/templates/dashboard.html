@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Exchange - Executive Dashboard</title>
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='%2300C851' viewBox='0 0 16 16'%3e%3cpath d='M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z'/%3e%3cpath d='M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z'/%3e%3c/svg%3e">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="16" cy="16" r="15" stroke="#00C851" stroke-width="2"/>
+                            <path d="M10 16h12M16 10v12" stroke="#00C851" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="title-section">
+                        <h1>Trading Exchange</h1>
+                        <span class="subtitle">Executive Dashboard</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div class="connection-status" id="connectionStatus">
+                        <div class="status-indicator offline" id="statusIndicator"></div>
+                        <span id="statusText">Connecting...</span>
+                    </div>
+                    <div class="last-updated">
+                        Last updated: <span id="lastUpdated">--:--:--</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Key Metrics Row -->
+            <section class="metrics-section">
+                <div class="metrics-grid">
+                    <div class="metric-card primary">
+                        <div class="metric-header">
+                            <h3>Total Orders</h3>
+                            <div class="metric-icon orders">📊</div>
+                        </div>
+                        <div class="metric-value" id="totalOrders">--</div>
+                        <div class="metric-change positive" id="ordersChange">
+                            <span class="change-arrow">↗</span>
+                            <span class="change-text">+0%</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card secondary">
+                        <div class="metric-header">
+                            <h3>Total Trades</h3>
+                            <div class="metric-icon trades">🔄</div>
+                        </div>
+                        <div class="metric-value" id="totalTrades">--</div>
+                        <div class="metric-change positive" id="tradesChange">
+                            <span class="change-arrow">↗</span>
+                            <span class="change-text">+0%</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card accent">
+                        <div class="metric-header">
+                            <h3>Total Volume</h3>
+                            <div class="metric-icon volume">💰</div>
+                        </div>
+                        <div class="metric-value" id="totalVolume">$--</div>
+                        <div class="metric-change positive" id="volumeChange">
+                            <span class="change-arrow">↗</span>
+                            <span class="change-text">+0%</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card warning">
+                        <div class="metric-header">
+                            <h3>Avg Latency</h3>
+                            <div class="metric-icon latency">⚡</div>
+                        </div>
+                        <div class="metric-value" id="avgLatency">--ms</div>
+                        <div class="metric-change positive" id="latencyChange">
+                            <span class="change-arrow">↘</span>
+                            <span class="change-text">-0%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Performance Metrics Row -->
+            <section class="performance-section">
+                <div class="performance-grid">
+                    <div class="performance-card">
+                        <div class="card-header">
+                            <h3>Orders per Second</h3>
+                            <div class="value-large" id="ordersPerSec">--</div>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="ordersProgress" style="width: 0%"></div>
+                        </div>
+                        <div class="threshold-info">
+                            <span>Target: 100 ops/sec</span>
+                        </div>
+                    </div>
+
+                    <div class="performance-card">
+                        <div class="card-header">
+                            <h3>Trades per Second</h3>
+                            <div class="value-large" id="tradesPerSec">--</div>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="tradesProgress" style="width: 0%"></div>
+                        </div>
+                        <div class="threshold-info">
+                            <span>Target: 50 tps</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="charts-grid">
+                    <!-- Volume Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Volume Trends</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-period="1h">1H</button>
+                                <button class="chart-btn" data-period="1d">1D</button>
+                                <button class="chart-btn" data-period="1w">1W</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="volumeChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Performance Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>System Performance</h3>
+                            <div class="legend">
+                                <div class="legend-item">
+                                    <div class="legend-color orders"></div>
+                                    <span>Orders/sec</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color trades"></div>
+                                    <span>Trades/sec</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="performanceChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- System Status Section -->
+            <section class="status-section">
+                <div class="status-grid">
+                    <!-- System Health -->
+                    <div class="status-card">
+                        <div class="status-header">
+                            <h3>System Health</h3>
+                            <div class="health-indicator" id="healthIndicator">
+                                <div class="health-status healthy" id="healthStatus">
+                                    <span class="status-dot"></span>
+                                    <span class="status-text">Healthy</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="health-details">
+                            <div class="service-status" id="servicesStatus">
+                                <div class="service-item">
+                                    <span class="service-name">Trading Engine</span>
+                                    <span class="service-state healthy">●</span>
+                                </div>
+                                <div class="service-item">
+                                    <span class="service-name">Metrics Service</span>
+                                    <span class="service-state healthy">●</span>
+                                </div>
+                                <div class="service-item">
+                                    <span class="service-name">Database</span>
+                                    <span class="service-state healthy">●</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Symbols -->
+                    <div class="status-card">
+                        <div class="status-header">
+                            <h3>Top Traded Symbols</h3>
+                        </div>
+                        <div class="symbols-list" id="topSymbols">
+                            <div class="symbol-item">
+                                <div class="symbol-info">
+                                    <span class="symbol-name">Loading...</span>
+                                    <span class="symbol-volume">--</span>
+                                </div>
+                                <div class="symbol-bar">
+                                    <div class="symbol-progress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Alerts -->
+                    <div class="status-card alerts">
+                        <div class="status-header">
+                            <h3>Performance Insights</h3>
+                        </div>
+                        <div class="alerts-list" id="alertsList">
+                            <div class="alert-item info">
+                                <div class="alert-icon">ℹ️</div>
+                                <div class="alert-content">
+                                    <div class="alert-title">System Initialization</div>
+                                    <div class="alert-time">Connecting to services...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <span>Simulated Exchange v1.0.0</span>
+                    <span>•</span>
+                    <span>Powered by Go & Gin Framework</span>
+                </div>
+                <div class="footer-actions">
+                    <button class="footer-btn" id="refreshBtn">Refresh</button>
+                    <button class="footer-btn" id="settingsBtn">Settings</button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Dashboard...</div>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script type="module" src="../static/js/api-client.js"></script>
+    <script type="module" src="../static/js/charts.js"></script>
+    <script type="module" src="../static/js/dashboard.js"></script>
+</body>
+</html>

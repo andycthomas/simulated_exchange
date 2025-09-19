@@ -1,0 +1,505 @@
+package engine
+
+import (
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"simulated_exchange/internal/types"
+)
+
+type MockOrderRepository struct {
+	mock.Mock
+}
+
+func (m *MockOrderRepository) Save(order types.Order) error {
+	args := m.Called(order)
+	return args.Error(0)
+}
+
+func (m *MockOrderRepository) GetByID(id string) (types.Order, error) {
+	args := m.Called(id)
+	return args.Get(0).(types.Order), args.Error(1)
+}
+
+func (m *MockOrderRepository) GetBySymbol(symbol string) ([]types.Order, error) {
+	args := m.Called(symbol)
+	return args.Get(0).([]types.Order), args.Error(1)
+}
+
+func (m *MockOrderRepository) Delete(id string) error {
+	args := m.Called(id)
+	return args.Error(0)
+}
+
+func (m *MockOrderRepository) GetAll() ([]types.Order, error) {
+	args := m.Called()
+	return args.Get(0).([]types.Order), args.Error(1)
+}
+
+type MockTradeRepository struct {
+	mock.Mock
+}
+
+func (m *MockTradeRepository) Save(trade types.Trade) error {
+	args := m.Called(trade)
+	return args.Error(0)
+}
+
+func (m *MockTradeRepository) GetByID(id string) (types.Trade, error) {
+	args := m.Called(id)
+	return args.Get(0).(types.Trade), args.Error(1)
+}
+
+func (m *MockTradeRepository) GetBySymbol(symbol string) ([]types.Trade, error) {
+	args := m.Called(symbol)
+	return args.Get(0).([]types.Trade), args.Error(1)
+}
+
+func (m *MockTradeRepository) GetAll() ([]types.Trade, error) {
+	args := m.Called()
+	return args.Get(0).([]types.Trade), args.Error(1)
+}
+
+type MockOrderMatcher struct {
+	mock.Mock
+}
+
+func (m *MockOrderMatcher) FindMatches(newOrder types.Order, existingOrders []types.Order) []types.Match {
+	args := m.Called(newOrder, existingOrders)
+	return args.Get(0).([]types.Match)
+}
+
+type MockTradeExecutor struct {
+	mock.Mock
+}
+
+func (m *MockTradeExecutor) ExecuteTrade(buyOrder types.Order, sellOrder types.Order, quantity float64, price float64) (types.Trade, error) {
+	args := m.Called(buyOrder, sellOrder, quantity, price)
+	return args.Get(0).(types.Trade), args.Error(1)
+}
+
+func TestNewTradingEngine(t *testing.T) {
+	orderRepo := &MockOrderRepository{}
+	tradeRepo := &MockTradeRepository{}
+	matcher := &MockOrderMatcher{}
+	executor := &MockTradeExecutor{}
+
+	engine := NewTradingEngine(orderRepo, tradeRepo, matcher, executor)
+
+	assert.NotNil(t, engine)
+	assert.Equal(t, orderRepo, engine.orderRepo)
+	assert.Equal(t, tradeRepo, engine.tradeRepo)
+	assert.Equal(t, matcher, engine.matcher)
+	assert.Equal(t, executor, engine.executor)
+}
+
+func TestTradingEngine_PlaceOrder_ValidOrder(t *testing.T) {
+	orderRepo := &MockOrderRepository{}
+	tradeRepo := &MockTradeRepository{}
+	matcher := &MockOrderMatcher{}
+	executor := &MockTradeExecutor{}
+
+	engine := NewTradingEngine(orderRepo, tradeRepo, matcher, executor)
+
+	order := types.Order{
+		Symbol:   "AAPL",
+		Side:     types.Buy,
+		Type:     types.Limit,
+		Quantity: 100,
+		Price:    150.0,
+	}
+
+	orderRepo.On("Save", mock.AnythingOfType("types.Order")).Return(nil)
+	orderRepo.On("GetBySymbol", "AAPL").Return([]types.Order{}, nil)
+	matcher.On("FindMatches", mock.AnythingOfType("types.Order"), mock.AnythingOfType("[]types.Order")).Return([]types.Match{})
+	orderRepo.On("Save", mock.AnythingOfType("types.Order")).Return(nil)
+
+	err := engine.PlaceOrder(order)
+
+	assert.NoError(t, err)
+	orderRepo.AssertExpectations(t)
+	matcher.AssertExpectations(t)
+}
+
+func TestTradingEngine_PlaceOrder_InvalidOrder(t *testing.T) {
+	orderRepo := &MockOrderRepository{}
+	tradeRepo := &MockTradeRepository{}
+	matcher := &MockOrderMatcher{}
+	executor := &MockTradeExecutor{}
+
+	engine := NewTradingEngine(orderRepo, tradeRepo, matcher, executor)
+
+	testCases := []struct {
+		name  string
+		order types.Order
+	}{
+		{
+			name: "empty symbol",
+			order: types.Order{
+				Symbol:   "",
+				Side:     types.Buy,
+				Type:     types.Limit,
+				Quantity: 100,
+				Price:    150.0,
+			},
+		},
+		{
+			name: "invalid side",
+			order: types.Order{
+				Symbol:   "AAPL",
+				Side:     "INVALID",
+				Type:     types.Limit,
+				Quantity: 100,
+				Price:    150.0,
+			},
+		},
+		{
+			name: "zero quantity",
+			order: types.Order{
+				Symbol:   "AAPL",
+				Side:     types.Buy,
+				Type:     types.Limit,
+				Quantity: 0,
+				Price:    150.0,
+			},
+		},
+		{
+			name: "negative price for limit order",
+			order: types.Order{
+				Symbol:   "AAPL",
+				Side:     types.Buy,
+				Type:     types.Limit,
+				Quantity: 100,
+				Price:    -150.0,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := engine.PlaceOrder(tc.order)
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestTradingEngine_PlaceOrder_WithMatches(t *testing.T) {
+	orderRepo := &MockOrderRepository{}
+	tradeRepo := &MockTradeRepository{}
+	matcher := &MockOrderMatcher{}
+	executor := &MockTradeExecutor{}
+
+	engine := NewTradingEngine(orderRepo, tradeRepo, matcher, executor)
+
+	buyOrder := types.Order{
+		ID:       "buy1",
+		Symbol:   "AAPL",
+		Side:     types.Buy,
+		Type:     types.Limit,
+		Quantity: 100,
+		Price:    150.0,
+	}
+
+	sellOrder := types.Order{
+		ID:       "sell1",
+		Symbol:   "AAPL",
+		Side:     types.Sell,
+		Type:     types.Limit,
+		Quantity: 50,
+		Price:    149.0,
+	}
+
+	existingOrders := []types.Order{sellOrder}
+	matches := []types.Match{
+		{
+			BuyOrder:  buyOrder,
+			SellOrder: sellOrder,
+			Quantity:  50,
+			Price:     149.0,
+		},
+	}
+
+	trade := types.Trade{
+		ID:          "trade1",
+		BuyOrderID:  "buy1",
+		SellOrderID: "sell1",
+		Symbol:      "AAPL",
+		Quantity:    50,
+		Price:       149.0,
+	}
+
+	orderRepo.On("Save", mock.AnythingOfType("types.Order")).Return(nil)
+	orderRepo.On("GetBySymbol", "AAPL").Return(existingOrders, nil)
+	matcher.On("FindMatches", mock.AnythingOfType("types.Order"), mock.AnythingOfType("[]types.Order")).Return(matches)
+	executor.On("ExecuteTrade", buyOrder, sellOrder, 50.0, 149.0).Return(trade, nil)
+	orderRepo.On("GetByID", "buy1").Return(buyOrder, nil)
+	orderRepo.On("GetByID", "sell1").Return(sellOrder, nil)
+	orderRepo.On("Delete", "sell1").Return(nil)
+	orderRepo.On("Save", mock.AnythingOfType("types.Order")).Return(nil)
+
+	err := engine.PlaceOrder(buyOrder)
+
+	assert.NoError(t, err)
+	orderRepo.AssertExpectations(t)
+	matcher.AssertExpectations(t)
+	executor.AssertExpectations(t)
+}
+
+func TestTradingEngine_CancelOrder_Success(t *testing.T) {
+	orderRepo := &MockOrderRepository{}
+	tradeRepo := &MockTradeRepository{}
+	matcher := &MockOrderMatcher{}
+	executor := &MockTradeExecutor{}
+
+	engine := NewTradingEngine(orderRepo, tradeRepo, matcher, executor)
+
+	order := types.Order{
+		ID:     "order1",
+		Symbol: "AAPL",
+		Side:   types.Buy,
+		Type:   types.Limit,
+	}
+
+	orderRepo.On("GetByID", "order1").Return(order, nil)
+	orderRepo.On("Delete", "order1").Return(nil)
+
+	err := engine.CancelOrder("order1")
+
+	assert.NoError(t, err)
+	orderRepo.AssertExpectations(t)
+}
+
+func TestTradingEngine_CancelOrder_NotFound(t *testing.T) {
+	orderRepo := &MockOrderRepository{}
+	tradeRepo := &MockTradeRepository{}
+	matcher := &MockOrderMatcher{}
+	executor := &MockTradeExecutor{}
+
+	engine := NewTradingEngine(orderRepo, tradeRepo, matcher, executor)
+
+	orderRepo.On("GetByID", "order1").Return(types.Order{}, fmt.Errorf("not found"))
+
+	err := engine.CancelOrder("order1")
+
+	assert.Error(t, err)
+	orderRepo.AssertExpectations(t)
+}
+
+func TestTradingEngine_GetOrderBook(t *testing.T) {
+	orderRepo := &MockOrderRepository{}
+	tradeRepo := &MockTradeRepository{}
+	matcher := &MockOrderMatcher{}
+	executor := &MockTradeExecutor{}
+
+	engine := NewTradingEngine(orderRepo, tradeRepo, matcher, executor)
+
+	orders := []types.Order{
+		{
+			ID:        "buy1",
+			Symbol:    "AAPL",
+			Side:      types.Buy,
+			Price:     150.0,
+			Timestamp: time.Now(),
+		},
+		{
+			ID:        "buy2",
+			Symbol:    "AAPL",
+			Side:      types.Buy,
+			Price:     149.0,
+			Timestamp: time.Now().Add(time.Second),
+		},
+		{
+			ID:        "sell1",
+			Symbol:    "AAPL",
+			Side:      types.Sell,
+			Price:     151.0,
+			Timestamp: time.Now(),
+		},
+		{
+			ID:        "sell2",
+			Symbol:    "AAPL",
+			Side:      types.Sell,
+			Price:     152.0,
+			Timestamp: time.Now().Add(time.Second),
+		},
+	}
+
+	orderRepo.On("GetBySymbol", "AAPL").Return(orders, nil)
+
+	orderBook, err := engine.GetOrderBook("AAPL")
+
+	assert.NoError(t, err)
+	assert.Equal(t, "AAPL", orderBook.Symbol)
+	assert.Len(t, orderBook.Bids, 2)
+	assert.Len(t, orderBook.Asks, 2)
+
+	assert.Equal(t, 150.0, orderBook.Bids[0].Price)
+	assert.Equal(t, 149.0, orderBook.Bids[1].Price)
+
+	assert.Equal(t, 151.0, orderBook.Asks[0].Price)
+	assert.Equal(t, 152.0, orderBook.Asks[1].Price)
+
+	orderRepo.AssertExpectations(t)
+}
+
+func TestPriceTimeOrderMatcher_FindMatches(t *testing.T) {
+	matcher := NewPriceTimeOrderMatcher()
+
+	buyOrder := types.Order{
+		ID:       "buy1",
+		Symbol:   "AAPL",
+		Side:     types.Buy,
+		Type:     types.Limit,
+		Quantity: 100,
+		Price:    150.0,
+	}
+
+	sellOrder1 := types.Order{
+		ID:        "sell1",
+		Symbol:    "AAPL",
+		Side:      types.Sell,
+		Type:      types.Limit,
+		Quantity:  50,
+		Price:     149.0,
+		Timestamp: time.Now(),
+	}
+
+	sellOrder2 := types.Order{
+		ID:        "sell2",
+		Symbol:    "AAPL",
+		Side:      types.Sell,
+		Type:      types.Limit,
+		Quantity:  30,
+		Price:     148.0,
+		Timestamp: time.Now().Add(time.Second),
+	}
+
+	existingOrders := []types.Order{sellOrder1, sellOrder2}
+
+	matches := matcher.FindMatches(buyOrder, existingOrders)
+
+	assert.Len(t, matches, 2)
+	assert.Equal(t, 148.0, matches[0].Price)
+	assert.Equal(t, 30.0, matches[0].Quantity)
+	assert.Equal(t, 149.0, matches[1].Price)
+	assert.Equal(t, 50.0, matches[1].Quantity)
+}
+
+func TestSimpleTradeExecutor_ExecuteTrade(t *testing.T) {
+	tradeRepo := &MockTradeRepository{}
+	executor := NewSimpleTradeExecutor(tradeRepo)
+
+	buyOrder := types.Order{
+		ID:       "buy1",
+		Symbol:   "AAPL",
+		Side:     types.Buy,
+		Quantity: 100,
+	}
+
+	sellOrder := types.Order{
+		ID:       "sell1",
+		Symbol:   "AAPL",
+		Side:     types.Sell,
+		Quantity: 100,
+	}
+
+	tradeRepo.On("Save", mock.AnythingOfType("types.Trade")).Return(nil)
+
+	trade, err := executor.ExecuteTrade(buyOrder, sellOrder, 50, 150.0)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "buy1", trade.BuyOrderID)
+	assert.Equal(t, "sell1", trade.SellOrderID)
+	assert.Equal(t, "AAPL", trade.Symbol)
+	assert.Equal(t, 50.0, trade.Quantity)
+	assert.Equal(t, 150.0, trade.Price)
+	tradeRepo.AssertExpectations(t)
+}
+
+func TestSimpleTradeExecutor_ExecuteTrade_InvalidInputs(t *testing.T) {
+	tradeRepo := &MockTradeRepository{}
+	executor := NewSimpleTradeExecutor(tradeRepo)
+
+	buyOrder := types.Order{
+		ID:       "buy1",
+		Symbol:   "AAPL",
+		Side:     types.Buy,
+		Quantity: 100,
+	}
+
+	sellOrder := types.Order{
+		ID:       "sell1",
+		Symbol:   "AAPL",
+		Side:     types.Sell,
+		Quantity: 100,
+	}
+
+	testCases := []struct {
+		name      string
+		buyOrder  types.Order
+		sellOrder types.Order
+		quantity  float64
+		price     float64
+	}{
+		{
+			name:      "symbol mismatch",
+			buyOrder:  types.Order{Symbol: "AAPL", Side: types.Buy, Quantity: 100},
+			sellOrder: types.Order{Symbol: "GOOGL", Side: types.Sell, Quantity: 100},
+			quantity:  50,
+			price:     150.0,
+		},
+		{
+			name:      "invalid buy side",
+			buyOrder:  types.Order{Symbol: "AAPL", Side: types.Sell, Quantity: 100},
+			sellOrder: sellOrder,
+			quantity:  50,
+			price:     150.0,
+		},
+		{
+			name:     "invalid sell side",
+			buyOrder: buyOrder,
+			sellOrder: types.Order{Symbol: "AAPL", Side: types.Buy, Quantity: 100},
+			quantity: 50,
+			price:    150.0,
+		},
+		{
+			name:      "zero quantity",
+			buyOrder:  buyOrder,
+			sellOrder: sellOrder,
+			quantity:  0,
+			price:     150.0,
+		},
+		{
+			name:      "negative price",
+			buyOrder:  buyOrder,
+			sellOrder: sellOrder,
+			quantity:  50,
+			price:     -150.0,
+		},
+		{
+			name:      "quantity exceeds buy order",
+			buyOrder:  buyOrder,
+			sellOrder: sellOrder,
+			quantity:  150,
+			price:     150.0,
+		},
+		{
+			name:      "quantity exceeds sell order",
+			buyOrder:  buyOrder,
+			sellOrder: sellOrder,
+			quantity:  150,
+			price:     150.0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := executor.ExecuteTrade(tc.buyOrder, tc.sellOrder, tc.quantity, tc.price)
+			assert.Error(t, err)
+		})
+	}
+}

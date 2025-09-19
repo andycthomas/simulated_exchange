@@ -1,0 +1,173 @@
+# docker-compose.test.yml - Docker Compose configuration for testing
+version: '3.8'
+
+services:
+  # Main application under test
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: runtime
+    ports:
+      - "8080:8080"   # API port
+      - "9090:9090"   # Metrics port
+    environment:
+      - GO_ENV=test
+      - LOG_LEVEL=info
+      - PORT=8080
+      - METRICS_PORT=9090
+      - DATABASE_URL=memory://test.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test-network
+    volumes:
+      - test-results:/root/test-results
+      - coverage-reports:/root/coverage
+
+  # Test runner service
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - GO_ENV=test
+      - TEST_TARGET_URL=http://app:8080
+      - PARALLEL_TESTS=4
+    volumes:
+      - test-results:/app/test-results
+      - coverage-reports:/app/coverage
+    networks:
+      - test-network
+    command: >
+      sh -c "
+        echo 'Waiting for application to be ready...' &&
+        sleep 10 &&
+        echo 'Running comprehensive test suite...' &&
+        go test -v -race -count=1 -timeout=10m ./test/e2e/... &&
+        echo 'Running benchmarks...' &&
+        go test -v -bench=. -benchmem -run=^$$ ./test/e2e/... &&
+        echo 'Test execution completed.'
+      "
+
+  # Load test service for performance testing
+  load-tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - GO_ENV=test
+      - TEST_TARGET_URL=http://app:8080
+      - LOAD_TEST_DURATION=60s
+      - LOAD_TEST_CONCURRENCY=50
+    volumes:
+      - test-results:/app/test-results
+    networks:
+      - test-network
+    command: >
+      sh -c "
+        echo 'Starting load tests...' &&
+        sleep 15 &&
+        go test -v -run=TestPerformanceTestSuite -timeout=5m ./test/e2e/... &&
+        echo 'Load testing completed.'
+      "
+
+  # Demo system tester
+  demo-tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - GO_ENV=test
+      - TEST_TARGET_URL=http://app:8080
+      - DEMO_TEST_DURATION=120s
+    volumes:
+      - test-results:/app/test-results
+    networks:
+      - test-network
+    command: >
+      sh -c "
+        echo 'Starting demo system tests...' &&
+        sleep 20 &&
+        go test -v -run=TestDemoFlowTestSuite -timeout=8m ./test/e2e/... &&
+        echo 'Demo testing completed.'
+      "
+
+  # Coverage reporter
+  coverage-reporter:
+    image: golang:1.21-alpine
+    depends_on:
+      - test-runner
+      - load-tester
+      - demo-tester
+    volumes:
+      - coverage-reports:/coverage
+      - test-results:/test-results
+    networks:
+      - test-network
+    command: >
+      sh -c "
+        echo 'Generating coverage reports...' &&
+        cd /coverage &&
+        if [ -f coverage.out ]; then
+          go tool cover -func=coverage.out > coverage-summary.txt &&
+          echo 'Coverage summary:' &&
+          cat coverage-summary.txt &&
+          go tool cover -html=coverage.out -o coverage-detailed.html &&
+          echo 'Coverage reports generated successfully.'
+        else
+          echo 'No coverage file found.'
+        fi
+      "
+
+  # Test results collector
+  results-collector:
+    image: alpine:latest
+    depends_on:
+      - test-runner
+      - load-tester
+      - demo-tester
+      - coverage-reporter
+    volumes:
+      - test-results:/test-results
+      - coverage-reports:/coverage
+      - ./test-output:/output
+    command: >
+      sh -c "
+        echo 'Collecting test results...' &&
+        mkdir -p /output &&
+        cp -r /test-results/* /output/ 2>/dev/null || echo 'No test results to copy' &&
+        cp -r /coverage/* /output/ 2>/dev/null || echo 'No coverage reports to copy' &&
+        echo 'Test Results Summary:' > /output/summary.txt &&
+        echo '===================' >> /output/summary.txt &&
+        echo 'Generated at: $(date)' >> /output/summary.txt &&
+        echo '' >> /output/summary.txt &&
+        ls -la /test-results/ >> /output/summary.txt 2>/dev/null || echo 'No test results found' >> /output/summary.txt &&
+        echo '' >> /output/summary.txt &&
+        ls -la /coverage/ >> /output/summary.txt 2>/dev/null || echo 'No coverage reports found' >> /output/summary.txt &&
+        echo 'Results collection completed.'
+      "
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test-results:
+  coverage-reports:

@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # Development trading service with hot reload
+  trading-service-dev:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: simulated-exchange-trading-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "2345:2345"  # Delve debugger port
+    environment:
+      - GIN_MODE=debug
+      - PORT=8080
+      - LOG_LEVEL=debug
+      - METRICS_ENABLED=true
+      - AI_ANALYSIS_ENABLED=true
+      - HOT_RELOAD=true
+    volumes:
+      # Mount source code for hot reload
+      - ../:/app:cached
+      - /app/vendor  # Exclude vendor directory
+      - dev_cache:/go/pkg/mod
+    networks:
+      - trading_network_dev
+    working_dir: /app
+    command: ["air", "-c", ".air.toml"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for development
+  redis-dev:
+    image: redis:7-alpine
+    container_name: simulated-exchange-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - trading_network_dev
+    command: redis-server --appendonly no --save ""
+
+  # PostgreSQL for development
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: simulated-exchange-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: trading_db_dev
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_pass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ../docker/init-db-dev.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - trading_network_dev
+
+  # Adminer for database management
+  adminer:
+    image: adminer:latest
+    container_name: simulated-exchange-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    networks:
+      - trading_network_dev
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres-dev
+
+  # MailHog for email testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: simulated-exchange-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - trading_network_dev
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: simulated-exchange-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"  # Web UI
+      - "14268:14268"  # HTTP collector
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    networks:
+      - trading_network_dev
+
+networks:
+  trading_network_dev:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  dev_cache:
+    driver: local
