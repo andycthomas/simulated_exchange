@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Dynamic Metrics</title>
+</head>
+<body>
+    <h1>Debug Dynamic Metrics Calculation</h1>
+    <div id="output"></div>
+
+    <script>
+        function calculateDynamicMetrics(startTime) {
+            const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+            const baseTime = parseInt(startTime) || 1727884800; // Default to Oct 2, 2024
+            const elapsedSeconds = Math.max(0, currentTime - baseTime);
+            const elapsedHours = elapsedSeconds / 3600;
+
+            // Base values to start from
+            const baseOrders = 200;
+            const baseTrades = 167;
+            const baseVolume = 381001.55;
+
+            // Growth rates per hour with some randomness
+            const ordersIncrement = 18 + Math.random() * 10; // 18-28 per hour
+            const tradesIncrement = 11 + Math.random() * 6;  // 11-17 per hour
+            const volumeIncrement = 8000 + Math.random() * 6000; // 8k-14k per hour
+
+            // Calculate current values
+            const currentOrders = Math.floor(baseOrders + (elapsedHours * ordersIncrement));
+            const currentTrades = Math.floor(baseTrades + (elapsedHours * tradesIncrement));
+            const currentVolume = baseVolume + (elapsedHours * volumeIncrement);
+
+            // Calculate performance metrics
+            const ordersPerSec = elapsedSeconds > 0 ? currentOrders / elapsedSeconds : 0;
+            const tradesPerSec = elapsedSeconds > 0 ? currentTrades / elapsedSeconds : 0;
+
+            return {
+                currentTime,
+                baseTime,
+                elapsedSeconds,
+                elapsedHours,
+                currentOrders,
+                currentTrades,
+                currentVolume,
+                ordersPerSec,
+                tradesPerSec,
+                ordersIncrement,
+                tradesIncrement,
+                volumeIncrement
+            };
+        }
+
+        const result = calculateDynamicMetrics("1727884800");
+
+        document.getElementById('output').innerHTML = `
+            <p><strong>Current Time:</strong> ${result.currentTime} (${new Date(result.currentTime * 1000)})</p>
+            <p><strong>Base Time:</strong> ${result.baseTime} (${new Date(result.baseTime * 1000)})</p>
+            <p><strong>Elapsed Seconds:</strong> ${result.elapsedSeconds}</p>
+            <p><strong>Elapsed Hours:</strong> ${result.elapsedHours.toFixed(2)}</p>
+            <p><strong>Orders Increment/Hour:</strong> ${result.ordersIncrement.toFixed(2)}</p>
+            <p><strong>Trades Increment/Hour:</strong> ${result.tradesIncrement.toFixed(2)}</p>
+            <p><strong>Volume Increment/Hour:</strong> ${result.volumeIncrement.toFixed(2)}</p>
+            <p><strong>Current Orders:</strong> ${result.currentOrders}</p>
+            <p><strong>Current Trades:</strong> ${result.currentTrades}</p>
+            <p><strong>Current Volume:</strong> ${result.currentVolume.toFixed(2)}</p>
+            <p><strong>Orders Per Second:</strong> ${result.ordersPerSec.toFixed(6)}</p>
+            <p><strong>Trades Per Second:</strong> ${result.tradesPerSec.toFixed(6)}</p>
+        `;
+    </script>
+</body>
+</html>

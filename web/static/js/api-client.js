@@ -79,7 +79,7 @@ class HTTPClient {
                 if (!response.ok) {
                     if (response.status === 503 && fullUrl.includes('/health') && data && data.status) {
                         // For health endpoint, treat 503 with valid health data as success
-                        return this.handleResponse(data);
+                        return this.handleResponse(data, response);
                     }
 
                     throw new APIError(
@@ -89,7 +89,7 @@ class HTTPClient {
                     );
                 }
 
-                return this.handleResponse(data);
+                return this.handleResponse(data, response);
 
             } catch (error) {
                 lastError = error;
@@ -115,9 +115,10 @@ class HTTPClient {
     /**
      * Handle API response format
      * @param {object} data - Response data
+     * @param {Response} response - Fetch response object
      * @returns {object} Processed response
      */
-    handleResponse(data) {
+    handleResponse(data, response = null) {
         if (data.success === false) {
             throw new APIError(
                 data.error?.message || 'API request failed',
@@ -125,7 +126,15 @@ class HTTPClient {
             );
         }
 
-        return data.data || data;
+        const result = data.data || data;
+
+        // Add server time headers for dynamic calculation
+        if (response && response.headers) {
+            result._serverTime = response.headers.get('X-Server-Time');
+            result._startTime = response.headers.get('X-Start-Time');
+        }
+
+        return result;
     }
 
     /**

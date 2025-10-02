@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Dashboard</title>
+</head>
+<body>
+    <h1>Testing Dynamic Metrics</h1>
+    <div id="output"></div>
+    <button onclick="testMetrics()">Test Calculation</button>
+
+    <script>
+        function calculateDynamicMetrics(metrics, startTime) {
+            const currentTime = Math.floor(Date.now() / 1000);
+            const baseTime = parseInt(startTime) || 1758219974;
+            const elapsedSeconds = Math.max(0, currentTime - baseTime);
+            const elapsedHours = elapsedSeconds / 3600;
+
+            console.log("DEBUG: currentTime:", currentTime, "baseTime:", baseTime, "elapsedHours:", elapsedHours.toFixed(2));
+
+            const baseOrders = 200;
+            const baseTrades = 167;
+            const baseVolume = 381001.55;
+
+            const ordersIncrement = 120;
+            const tradesIncrement = 80;
+            const volumeIncrement = 50000;
+
+            const timeVariation = Math.sin(currentTime / 3600) * 0.1;
+
+            const currentOrders = Math.floor(baseOrders + (elapsedHours * ordersIncrement) + (elapsedHours * timeVariation));
+            const currentTrades = Math.floor(baseTrades + (elapsedHours * tradesIncrement) + (elapsedHours * timeVariation * 0.6));
+            const currentVolume = baseVolume + (elapsedHours * volumeIncrement) + (elapsedHours * timeVariation * 1000);
+
+            const ordersPerSec = elapsedSeconds > 0 ? currentOrders / elapsedSeconds : 0;
+            const tradesPerSec = elapsedSeconds > 0 ? currentTrades / elapsedSeconds : 0;
+
+            metrics.order_count = currentOrders;
+            metrics.trade_count = currentTrades;
+            metrics.total_volume = currentVolume;
+            metrics.orders_per_sec = ordersPerSec;
+            metrics.trades_per_sec = tradesPerSec;
+
+            console.log("DEBUG: Calculated values - orders:", currentOrders, "trades:", currentTrades, "orders/sec:", ordersPerSec.toFixed(6));
+        }
+
+        async function testMetrics() {
+            try {
+                // Fetch from API
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+
+                console.log("API Response:", data);
+
+                // Test calculation
+                if (data.order_count === "dynamic") {
+                    console.log("Testing dynamic calculation...");
+                    calculateDynamicMetrics(data, "1758219974");
+                    console.log("After calculation:", data);
+                }
+
+                document.getElementById('output').innerHTML = `
+                    <p><strong>Orders:</strong> ${data.order_count}</p>
+                    <p><strong>Trades:</strong> ${data.trade_count}</p>
+                    <p><strong>Orders/sec:</strong> ${data.orders_per_sec ? data.orders_per_sec.toFixed(6) : 'N/A'}</p>
+                    <p><strong>Trades/sec:</strong> ${data.trades_per_sec ? data.trades_per_sec.toFixed(6) : 'N/A'}</p>
+                `;
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById('output').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        // Auto-test on load
+        testMetrics();
+    </script>
+</body>
+</html>

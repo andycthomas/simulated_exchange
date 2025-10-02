@@ -122,7 +122,12 @@ class DashboardController {
             // Update metrics UI
             if (data.metrics) {
                 console.log('Received metrics data:', data.metrics);
-                this.uiManager.updateMetrics(data.metrics, this.lastMetrics);
+                this.uiManager.updateMetrics(
+                    data.metrics,
+                    this.lastMetrics,
+                    null,
+                    data.metrics._startTime
+                );
                 this.chartManager.updateCharts(data);
                 this.lastMetrics = data.metrics;
 
@@ -297,11 +302,17 @@ class UIManager {
     /**
      * Update metrics display
      */
-    updateMetrics(metrics, previousMetrics = null) {
+    updateMetrics(metrics, previousMetrics = null, serverTime = null, startTime = null) {
         if (!metrics) return;
 
-        // Calculate missing metrics from available symbol_metrics data
-        if (metrics.symbol_metrics && !metrics.total_volume) {
+        // If metrics contains "dynamic" values, calculate real-time growing metrics
+        if (metrics.order_count === "dynamic") {
+            this.calculateDynamicMetrics(metrics, startTime);
+            // Mark that we've calculated dynamic metrics to skip fallback logic
+            metrics._isDynamic = true;
+        }
+        // Calculate missing metrics from available symbol_metrics data (fallback)
+        else if (metrics.symbol_metrics && !metrics.total_volume && !metrics._isDynamic) {
             const symbolData = Object.values(metrics.symbol_metrics);
 
             // Calculate aggregates from symbol data
@@ -317,7 +328,6 @@ class UIManager {
 
             // Use a reasonable latency estimate if not provided
             metrics.avg_latency = metrics.avg_latency || "15ms";
-
         }
 
         // Update main metrics
@@ -328,8 +338,8 @@ class UIManager {
         this.updateElement('avgLatency', this.formatLatency(metrics.avg_latency));
 
         // Update performance metrics
-        this.updateElement('ordersPerSec', this.formatDecimal(metrics.orders_per_sec, 1));
-        this.updateElement('tradesPerSec', this.formatDecimal(metrics.trades_per_sec, 1));
+        this.updateElement('ordersPerSec', this.formatDecimal(metrics.orders_per_sec, 3));
+        this.updateElement('tradesPerSec', this.formatDecimal(metrics.trades_per_sec, 3));
 
         // Update progress bars
         this.updateProgressBar('ordersProgress', metrics.orders_per_sec, 100);
@@ -361,6 +371,68 @@ class UIManager {
         if (metrics.analysis) {
             this.updatePerformanceInsights(metrics.analysis);
         }
+    }
+
+    /**
+     * Calculate dynamic growing metrics based on elapsed time
+     */
+    calculateDynamicMetrics(metrics, startTime) {
+        const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+        const baseTime = parseInt(startTime) || 1758219974; // Default to ~2 weeks ago
+        const elapsedSeconds = Math.max(0, currentTime - baseTime);
+        const elapsedHours = elapsedSeconds / 3600;
+
+
+        // Base values to start from
+        const baseOrders = 200;
+        const baseTrades = 167;
+        const baseVolume = 381001.55;
+
+        // Fixed growth rates per hour with small time-based variation
+        const ordersIncrement = 120; // Base rate: 120 per hour (2 per minute)
+        const tradesIncrement = 80;  // Base rate: 80 per hour (1.33 per minute)
+        const volumeIncrement = 50000; // Base rate: 50k per hour
+
+        // Add small deterministic variation based on current time (but still monotonic)
+        const timeVariation = Math.sin(currentTime / 3600) * 0.1; // Small sine wave variation
+
+        // Calculate current values (always increasing)
+        const currentOrders = Math.floor(baseOrders + (elapsedHours * ordersIncrement) + (elapsedHours * timeVariation));
+        const currentTrades = Math.floor(baseTrades + (elapsedHours * tradesIncrement) + (elapsedHours * timeVariation * 0.6));
+        const currentVolume = baseVolume + (elapsedHours * volumeIncrement) + (elapsedHours * timeVariation * 1000);
+
+        // Calculate performance metrics
+        const ordersPerSec = elapsedSeconds > 0 ? currentOrders / elapsedSeconds : 0;
+        const tradesPerSec = elapsedSeconds > 0 ? currentTrades / elapsedSeconds : 0;
+
+        // Calculate uptime string
+        const uptimeHours = Math.floor(elapsedSeconds / 3600);
+        const uptimeMinutes = Math.floor((elapsedSeconds % 3600) / 60);
+        const uptimeSecondsRemainder = elapsedSeconds % 60;
+        const uptimeString = `${uptimeHours}h${uptimeMinutes}m${Math.floor(uptimeSecondsRemainder)}s`;
+
+        // Update metrics object
+        metrics.order_count = currentOrders;
+        metrics.trade_count = currentTrades;
+        metrics.total_volume = currentVolume;
+        metrics.orders_per_sec = ordersPerSec;
+        metrics.trades_per_sec = tradesPerSec;
+        metrics.uptime = uptimeString;
+        metrics.timestamp = new Date().toISOString();
+
+
+        // Calculate dynamic symbol metrics
+        const symbolNames = ['BTC', 'ETH', 'SOL', 'ADA', 'MATIC', 'DOT'];
+        const symbolDistribution = [0.35, 0.25, 0.18, 0.11, 0.07, 0.04];
+        const tradeDistribution = [0.27, 0.23, 0.17, 0.13, 0.11, 0.09];
+
+        metrics.symbol_metrics = {};
+        symbolNames.forEach((symbol, index) => {
+            metrics.symbol_metrics[symbol] = {
+                volume: currentVolume * symbolDistribution[index],
+                trades: Math.floor(currentTrades * tradeDistribution[index])
+            };
+        });
     }
 
     /**
