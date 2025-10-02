@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -96,6 +98,37 @@ func (s *Server) setupMiddleware() {
 
 // setupRoutes configures all API routes
 func (s *Server) setupRoutes() {
+	// Dashboard route
+	s.router.GET("/dashboard", func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		data, err := os.ReadFile("web/templates/dashboard.html")
+		if err != nil {
+			c.String(http.StatusNotFound, "Dashboard not found")
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+	})
+
+	// Static file serving
+	s.router.Static("/static", "./web/static")
+
+	// Redirect root to dashboard for better UX
+	s.router.GET("/", func(c *gin.Context) {
+		// If Accept header indicates browser request, redirect to dashboard
+		accept := c.GetHeader("Accept")
+		if strings.Contains(accept, "text/html") {
+			c.Redirect(http.StatusMovedPermanently, "/dashboard")
+			return
+		}
+		// Otherwise return JSON API info
+		c.JSON(http.StatusOK, gin.H{
+			"service": "simulated-exchange-api",
+			"version": "1.0.0",
+			"status":  "running",
+			"web_dashboard": "/dashboard",
+		})
+	})
+
 	// API version group
 	api := s.router.Group("/api")
 
@@ -113,13 +146,6 @@ func (s *Server) setupRoutes() {
 
 	// Root health check
 	s.router.GET("/health", s.handlers.MetricsHandler.GetHealth)
-	s.router.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"service": "simulated-exchange-api",
-			"version": "1.0.0",
-			"status":  "running",
-		})
-	})
 }
 
 // Start starts the HTTP server

@@ -1,0 +1,57 @@
+# Performance-Optimized Order Flow Simulator Configuration
+# Designed to work with optimized database without overwhelming it
+
+simulator:
+  # Rate limiting - EXTREMELY conservative for database protection
+  base_order_rate: 0.01           # 0.01 orders/second = 0.6 orders/minute
+  max_orders_per_minute: 2        # Hard limit: 2 orders per minute maximum
+
+  # Batch processing to reduce database load
+  batch_size: 1                   # Send 1 order at a time
+  batch_interval: "60s"           # Wait 60 seconds between orders
+
+  # Volatility settings
+  volatility_boost: 1.2           # Only 20% increase during volatility
+  volatility_cooldown: "5m"       # 5 minute cooldown between volatility events
+
+  # User behavior simulation
+  user_types:
+    retail: 0.8                   # 80% retail (slower, smaller orders)
+    algorithmic: 0.15             # 15% algorithmic
+    institutional: 0.05           # 5% institutional (large but infrequent)
+
+  # Order characteristics for performance
+  order_size_limits:
+    min_quantity: 0.001           # Smaller minimum orders
+    max_quantity: 10.0            # Reasonable maximum
+    retail_max: 1.0               # Retail traders: max 1.0 units
+    algo_max: 5.0                 # Algo traders: max 5.0 units
+    institutional_max: 10.0       # Institutions: max 10.0 units
+
+  # Market behavior
+  symbols:
+    - "BTC"
+    - "ETH"
+    - "SOL"                       # Reduced from 6 to 3 symbols
+
+  price_variation: 0.01           # 1% price variation (less chaos)
+  market_hours_boost: 1.1         # Only 10% more activity during "market hours"
+
+  # Performance monitoring
+  health_check_interval: "60s"    # Check health every minute
+  auto_throttle: true             # Automatically reduce rate if errors occur
+  error_threshold: 0.1            # Stop if 10% of orders fail
+
+# Database connection optimization for simulator
+database:
+  max_retries: 3
+  retry_delay: "2s"
+  connection_timeout: "10s"
+  query_timeout: "5s"
+
+# Logging for performance monitoring
+logging:
+  level: "info"
+  log_successful_orders: false    # Don't log every successful order
+  log_rate_limits: true          # Log when rate limited
+  log_batch_operations: true     # Log batch sends

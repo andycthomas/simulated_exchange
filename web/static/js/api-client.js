@@ -5,7 +5,7 @@
 
 // API Configuration
 const API_CONFIG = {
-    baseURL: 'http://localhost:8080/api',
+    baseURL: '/api',
     timeout: 10000,
     retryAttempts: 3,
     retryDelay: 1000
@@ -63,7 +63,25 @@ class HTTPClient {
 
                 clearTimeout(timeoutId);
 
+                // Parse JSON response first
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    throw new APIError(
+                        `Invalid JSON response: ${e.message}`,
+                        response.status,
+                        fullUrl
+                    );
+                }
+
+                // Special handling for health endpoint: 503 with valid JSON is still a valid response
                 if (!response.ok) {
+                    if (response.status === 503 && fullUrl.includes('/health') && data && data.status) {
+                        // For health endpoint, treat 503 with valid health data as success
+                        return this.handleResponse(data);
+                    }
+
                     throw new APIError(
                         `HTTP ${response.status}: ${response.statusText}`,
                         response.status,
@@ -71,7 +89,6 @@ class HTTPClient {
                     );
                 }
 
-                const data = await response.json();
                 return this.handleResponse(data);
 
             } catch (error) {
@@ -283,16 +300,21 @@ class TradingExchangeAPI {
             const result = {
                 timestamp: new Date().toISOString(),
                 metrics: metrics.status === 'fulfilled' ? metrics.value : null,
-                health: health.status === 'fulfilled' ? health.value : null,
+                health: health.status === 'fulfilled' ? health.value : { status: 'unknown', message: 'Health check unavailable' },
                 errors: []
             };
 
+            // Only add metrics error if it fails - health failures are acceptable
             if (metrics.status === 'rejected') {
                 result.errors.push({ type: 'METRICS_ERROR', error: metrics.reason });
+                // If metrics fail, this is a real connection problem
+                this.emit('error', { type: 'METRICS_FETCH_ERROR', error: metrics.reason });
             }
 
             if (health.status === 'rejected') {
-                result.errors.push({ type: 'HEALTH_ERROR', error: health.reason });
+                // Health failures are logged but not treated as connection errors
+                console.warn('Health check failed, but connection is working:', health.reason.message);
+                result.health = { status: 'unavailable', message: 'Health endpoint unavailable' };
             }
 
             this.emit('dashboardDataFetched', result);
@@ -340,7 +362,7 @@ class TradingExchangeAPI {
      */
     async checkConnection() {
         try {
-            await this.getHealth();
+            await this.getMetrics();
             this.emit('connectionStatusChanged', { connected: true });
             return true;
         } catch (error) {

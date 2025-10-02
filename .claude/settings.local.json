@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(docker cp:*)",
+      "Bash(docker system prune:*)",
+      "Bash(sudo kill:*)",
+      "Bash(time curl:*)"
     ],
     "deny": [],
     "ask": []

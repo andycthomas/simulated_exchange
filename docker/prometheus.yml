@@ -1,34 +1,85 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    cluster: 'simulated-exchange'
+    environment: 'production'
 
 rule_files:
   # - "first_rules.yml"
   # - "second_rules.yml"
 
 scrape_configs:
-  # Trading service metrics
-  - job_name: 'trading-service'
+  # Trading API microservice metrics
+  - job_name: 'trading-api'
     static_configs:
-      - targets: ['trading-service:8080']
+      - targets: ['trading-api:8080']
     metrics_path: '/metrics'
     scrape_interval: 10s
+    scrape_timeout: 5s
+    scheme: http
+
+  # Market Simulator microservice metrics
+  - job_name: 'market-simulator'
+    static_configs:
+      - targets: ['market-simulator:8081']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 5s
+    scheme: http
+
+  # Order Flow Simulator microservice metrics
+  - job_name: 'order-flow-simulator'
+    static_configs:
+      - targets: ['order-flow-simulator:8082']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 5s
+    scheme: http
+
+  # NGINX metrics (via stub_status)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:80']
+    metrics_path: '/nginx_status'
+    scrape_interval: 30s
+    scrape_timeout: 5s
 
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-
-  # Redis metrics (if redis_exporter is added)
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
-    metrics_path: '/metrics'
     scrape_interval: 30s
 
-  # PostgreSQL metrics (if postgres_exporter is added)
-  - job_name: 'postgres'
+  # Service health checks via HTTP probes
+  - job_name: 'service-health-checks'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - http://trading-api:8080/health
+        - http://market-simulator:8081/health
+        - http://order-flow-simulator:8082/health
+        - http://nginx:80/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Redis health and basic metrics
+  - job_name: 'redis-health'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: '/health'
+    scrape_interval: 30s
+
+  # PostgreSQL health check
+  - job_name: 'postgres-health'
     static_configs:
       - targets: ['postgres:5432']
-    metrics_path: '/metrics'
+    metrics_path: '/health'
     scrape_interval: 30s

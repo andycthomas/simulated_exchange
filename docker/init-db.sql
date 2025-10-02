@@ -29,8 +29,9 @@ CREATE TABLE IF NOT EXISTS trading.orders (
     user_id UUID NOT NULL REFERENCES trading.users(id),
     symbol VARCHAR(10) NOT NULL,
     side VARCHAR(4) NOT NULL CHECK (side IN ('BUY', 'SELL')),
-    quantity DECIMAL(20, 8) NOT NULL CHECK (quantity > 0),
-    price DECIMAL(20, 8) NOT NULL CHECK (price > 0),
+    type VARCHAR(10) NOT NULL CHECK (type IN ('MARKET', 'LIMIT', 'STOP_LOSS')),
+    quantity DECIMAL(20, 8) NOT NULL CHECK (quantity >= 0),
+    price DECIMAL(20, 8) NOT NULL CHECK (price >= 0),
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
