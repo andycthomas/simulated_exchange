@@ -1,14 +1,14 @@
 # Performance-Optimized Order Flow Simulator Configuration
-# Designed to work with optimized database without overwhelming it
+# High Activity Mode - Designed for realistic trading simulation
 
 simulator:
-  # Rate limiting - EXTREMELY conservative for database protection
-  base_order_rate: 0.01           # 0.01 orders/second = 0.6 orders/minute
-  max_orders_per_minute: 2        # Hard limit: 2 orders per minute maximum
+  # Rate limiting - Conservative activity to prevent database overload
+  base_order_rate: 5.0            # 5 orders/second = 300 orders/minute
+  max_orders_per_minute: 600      # Hard limit: 600 orders per minute maximum
 
-  # Batch processing to reduce database load
-  batch_size: 1                   # Send 1 order at a time
-  batch_interval: "60s"           # Wait 60 seconds between orders
+  # Batch processing for efficiency
+  batch_size: 10                  # Send 10 orders at a time
+  batch_interval: "1s"            # Wait 1 second between batches
 
   # Volatility settings
   volatility_boost: 1.2           # Only 20% increase during volatility

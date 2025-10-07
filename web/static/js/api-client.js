@@ -6,9 +6,9 @@
 // API Configuration
 const API_CONFIG = {
     baseURL: '/api',
-    timeout: 10000,
-    retryAttempts: 3,
-    retryDelay: 1000
+    timeout: 30000,      // Increased to 30 seconds
+    retryAttempts: 2,    // Reduced to 2 retries (3 total attempts)
+    retryDelay: 2000     // Increased delay to 2 seconds between retries
 };
 
 // API Endpoints

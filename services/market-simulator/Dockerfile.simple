@@ -1,0 +1,11 @@
+# Simple Dockerfile using pre-built binary
+FROM gcr.io/distroless/static:nonroot
+
+# Copy pre-built binary from project root
+COPY market-simulator .
+
+# Expose port
+EXPOSE 8081
+
+# Run the application
+CMD ["./market-simulator"]

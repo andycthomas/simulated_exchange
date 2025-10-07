@@ -45,7 +45,7 @@ func NewSimulatorService(
 		eventBus:          eventBus,
 		logger:            logger,
 		symbols:           []string{"BTCUSD", "ETHUSD", "ADAUSD"},
-		updateInterval:    1 * time.Second,
+		updateInterval:    250 * time.Millisecond,
 		volatilityEvents:  make(map[string]time.Time),
 	}
 }

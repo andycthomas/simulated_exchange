@@ -319,10 +319,30 @@ func (pg *PriceGenerator) generateVolume(symbol string, price float64, volatilit
 	// Volume increases with volatility
 	volumeMultiplier := 1.0 + volatility*2
 
-	// Add random variation
-	randomFactor := 0.5 + pg.rng.Float64()
+	// Add realistic random variation (log-normal distribution for trading volume)
+	// Most trades are small, occasional large spikes
+	randomFactor := math.Exp(pg.rng.NormFloat64() * 0.8) // Log-normal: mean ~1, wide variance
 
-	return baseVolume * volumeMultiplier * randomFactor
+	// Occasional volume spikes (5% chance of 3-10x volume)
+	if pg.rng.Float64() < 0.05 {
+		randomFactor *= 3.0 + pg.rng.Float64()*7.0
+	}
+
+	// Occasional quiet periods (10% chance of very low volume)
+	if pg.rng.Float64() < 0.10 {
+		randomFactor *= 0.1 + pg.rng.Float64()*0.2
+	}
+
+	// Time-of-day pattern (higher volume during "market hours")
+	hour := time.Now().Hour()
+	timeMultiplier := 1.0
+	if hour >= 9 && hour <= 16 { // Simulated market hours
+		timeMultiplier = 1.5 + pg.rng.Float64()*0.5
+	} else {
+		timeMultiplier = 0.3 + pg.rng.Float64()*0.4
+	}
+
+	return baseVolume * volumeMultiplier * randomFactor * timeMultiplier
 }
 
 func (pg *PriceGenerator) updatePriceState(symbol string, newPrice, volume float64) {

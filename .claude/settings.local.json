@@ -9,7 +9,17 @@
       "Bash(docker system prune:*)",
       "Bash(sudo kill:*)",
       "Bash(time curl:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(make deps)",
+      "Bash(tee:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker stats:*)",
+      "Bash(docker ps:*)",
+      "Bash(python3:*)",
+      "Bash(docker inspect:*)",
+      "Bash(chmod:*)",
+      "Bash(sudo bpftrace:*)"
     ],
     "deny": [],
     "ask": []

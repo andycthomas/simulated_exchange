@@ -68,8 +68,8 @@ func NewFlowSimulator(
 	eventBus *messaging.RedisEventBus,
 	logger *slog.Logger,
 ) *FlowSimulator {
-	// Create adaptive throttle with EXTREMELY conservative settings
-	adaptiveThrottle := NewAdaptiveThrottle(0.01, logger) // Start with 0.01 orders/second (1 order per 100 seconds)
+	// Create adaptive throttle with moderate activity settings
+	adaptiveThrottle := NewAdaptiveThrottle(5.0, logger) // Start with 5 orders/second
 
 	return &FlowSimulator{
 		orderGenerator:           orderGenerator,
@@ -79,9 +79,9 @@ func NewFlowSimulator(
 		logger:                   logger,
 		adaptiveThrottle:         adaptiveThrottle,
 		symbolStats:              make(map[string]*SymbolFlowStats),
-		orderSubmissionInterval:  30 * time.Second, // MUCH slower: every 30 seconds
+		orderSubmissionInterval:  1000 * time.Millisecond, // Every 1 second
 		statisticsUpdateInterval: 60 * time.Second,
-		maxOrdersPerSecond:       0.02, // EXTREMELY conservative: 0.02 orders per second max
+		maxOrdersPerSecond:       10.0, // 10 orders per second max
 	}
 }
 
@@ -241,44 +241,33 @@ func (fs *FlowSimulator) runOrderGenerationLoop() {
 }
 
 func (fs *FlowSimulator) processSymbolOrders(symbol string) {
-	// Check adaptive throttling first
-	if fs.adaptiveThrottle.ShouldThrottle() {
-		fs.logger.Debug("Order generation throttled by adaptive throttle")
-		return
+	// Generate multiple orders per symbol based on rate with realistic variance
+	baseOrdersPerTick := int(fs.adaptiveThrottle.GetCurrentRate() * fs.orderSubmissionInterval.Seconds() / float64(len(fs.orderGenerator.GetSupportedSymbols())))
+
+	if baseOrdersPerTick < 1 {
+		baseOrdersPerTick = 1
 	}
 
-	// Check if we can generate orders based on rate limiting
-	if !fs.orderGenerator.CanGenerateOrder() {
-		fs.logger.Debug("Order generation rate limited")
-		return
+	// Add realistic variance to order generation
+	// 70% normal traffic, 20% burst (2-5x), 10% quiet (0.1-0.5x)
+	ordersPerTick := baseOrdersPerTick
+
+	rand := time.Now().UnixNano() % 100
+	if rand < 20 { // 20% burst
+		multiplier := 2 + (rand % 4) // 2-5x
+		ordersPerTick = baseOrdersPerTick * int(multiplier)
+	} else if rand < 30 { // 10% quiet
+		ordersPerTick = baseOrdersPerTick / (2 + int(rand%3)) // 0.2-0.5x
 	}
 
-	// Check system health before generating orders
-	if !fs.adaptiveThrottle.IsHealthy() {
-		fs.logger.Warn("System health check failed, skipping order generation")
-		return
-	}
-
-	orderRate := fs.adaptiveThrottle.GetCurrentRate() // Use throttled rate instead of base rate
-
-	// Calculate probability of generating an order this tick
-	ticksPerSecond := 1.0 / fs.orderSubmissionInterval.Seconds()
-	probability := orderRate / ticksPerSecond
-
-	if probability > 1.0 {
-		probability = 1.0
-	}
-
-	// Random chance to generate an order (using more conservative probability)
-	if fs.shouldGenerateOrder(probability * 0.5) { // Reduce probability by 50%
+	for i := 0; i < ordersPerTick; i++ {
 		fs.generateAndSubmitOrder(symbol)
 	}
 }
 
 func (fs *FlowSimulator) shouldGenerateOrder(probability float64) bool {
-	// Simple probability check
-	// In a more sophisticated implementation, we might use Poisson distribution
-	return probability > 0.5 // Simplified for this example
+	// Always generate orders when called - we control frequency via intervals
+	return true
 }
 
 func (fs *FlowSimulator) generateAndSubmitOrder(symbol string) {

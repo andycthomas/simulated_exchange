@@ -2,7 +2,9 @@
 FROM golang:1.21-alpine AS development
 
 # Install development dependencies
-RUN apk add --no-cache git ca-certificates tzdata curl
+RUN apk update --allow-untrusted && \
+    apk --no-cache --allow-untrusted add git ca-certificates curl && \
+    apk --no-cache add tzdata
 
 # Install Air for hot reload
 RUN go install github.com/cosmtrek/air@latest

@@ -5,7 +5,7 @@ services:
     container_name: simulated-exchange-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: trading_db
       POSTGRES_USER: trading_user
@@ -13,6 +13,7 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     command: >
       postgres
+      -c shared_preload_libraries=pg_stat_statements
       -c shared_buffers=512MB
       -c effective_cache_size=2GB
       -c work_mem=32MB
@@ -89,6 +90,7 @@ services:
       - REDIS_DATABASE=0
       - LOG_LEVEL=info
       - LOG_FORMAT=json
+      - HEALTH_CHECK_PORT=8080
     volumes:
       - trading_logs:/app/logs
     networks:
@@ -99,7 +101,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "./healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -107,11 +109,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 512M
+          cpus: '2.0'
+          memory: 2G
         reservations:
-          cpus: '0.25'
-          memory: 256M
+          cpus: '0.5'
+          memory: 512M
 
   # Market Simulator Microservice
   market-simulator:
@@ -135,6 +137,7 @@ services:
       - REDIS_DATABASE=0
       - LOG_LEVEL=info
       - LOG_FORMAT=json
+      - HEALTH_CHECK_PORT=8081
     volumes:
       - market_logs:/app/logs
     networks:
@@ -143,7 +146,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
+      test: ["CMD", "./healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -181,6 +184,7 @@ services:
       - LOG_LEVEL=info
       - LOG_FORMAT=json
       - CONFIG_FILE=/app/config/performance-optimized.yaml
+      - HEALTH_CHECK_PORT=8082
     volumes:
       - flow_logs:/app/logs
       - ./services/order-flow-simulator/config:/app/config:ro
@@ -192,7 +196,7 @@ services:
       trading-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/health"]
+      test: ["CMD", "./healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3

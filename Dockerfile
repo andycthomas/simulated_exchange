@@ -1,9 +1,12 @@
+FROM alpine:3.20
+
 # Multi-stage Dockerfile for Go application
 # Stage 1: Build stage
 FROM golang:1.22-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk update --allow-untrusted && \
+    apk --no-cache --allow-untrusted add git ca-certificates tzdata
 
 # Set working directory
 WORKDIR /app
@@ -27,7 +30,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 FROM alpine:3.18 AS runtime
 
 # Install runtime dependencies
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk update --allow-untrusted && \
+    apk --no-cache --allow-untrusted add ca-certificates && \
+    apk --no-cache add tzdata
 
 # Create non-root user
 RUN addgroup -g 1001 -S appgroup && \

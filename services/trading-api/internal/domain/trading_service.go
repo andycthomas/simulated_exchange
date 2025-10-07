@@ -156,16 +156,18 @@ func (s *TradingService) GetOrder(ctx context.Context, orderID string) (*shared.
 
 // GetRecentOrders retrieves recent orders with optional limit
 func (s *TradingService) GetRecentOrders(ctx context.Context, limit int) ([]*shared.Order, error) {
-	// Use the OrderRepository's GetOrdersInTimeRange or create a simple method
-	// For now, we'll get active orders as a proxy for recent orders
-	orders, err := s.orderRepo.GetActiveOrders(ctx)
+	// Get all orders from the last hour for metrics calculation
+	endTime := time.Now()
+	startTime := endTime.Add(-1 * time.Hour)
+
+	orders, err := s.orderRepo.GetOrdersInTimeRange(ctx, startTime, endTime)
 	if err != nil {
 		return nil, err
 	}
 
 	// If we have more orders than the limit, return the most recent ones
 	if len(orders) > limit {
-		return orders[:limit], nil
+		return orders[len(orders)-limit:], nil // Get last N orders (most recent)
 	}
 
 	return orders, nil

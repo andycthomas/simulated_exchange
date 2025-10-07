@@ -81,7 +81,7 @@ func (mh *MetricsHandler) GetMetrics(c *gin.Context) {
 	uptime := time.Since(mh.startTime)
 
 	// Get real order data with timeout and performance monitoring
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
 	orders, err := mh.tradingService.GetRecentOrders(ctx, 500) // Limit to 500 orders for performance
