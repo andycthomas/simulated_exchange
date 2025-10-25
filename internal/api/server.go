@@ -32,12 +32,14 @@ type Config struct {
 type Handlers struct {
 	OrderHandler   handlers.OrderHandler
 	MetricsHandler handlers.MetricsHandler
+	DemoHandler    handlers.DemoHandler
 }
 
 // Dependencies interface for dependency injection into server
 type Dependencies interface {
 	GetOrderService() handlers.OrderService
 	GetMetricsService() handlers.MetricsService
+	GetDemoController() handlers.DemoController
 }
 
 // NewServer creates a new server with dependency injection
@@ -53,10 +55,12 @@ func NewServer(deps Dependencies, config *Config) *Server {
 	// Create handlers with dependency injection
 	orderHandler := handlers.NewOrderHandler(deps.GetOrderService())
 	metricsHandler := handlers.NewMetricsHandler(deps.GetMetricsService())
+	demoHandler := handlers.NewDemoHandler(deps.GetDemoController())
 
 	handlers := &Handlers{
 		OrderHandler:   orderHandler,
 		MetricsHandler: metricsHandler,
+		DemoHandler:    demoHandler,
 	}
 
 	server := &Server{
@@ -144,6 +148,25 @@ func (s *Server) setupRoutes() {
 	api.GET("/metrics", s.handlers.MetricsHandler.GetMetrics)
 	api.GET("/health", s.handlers.MetricsHandler.GetHealth)
 
+	// Demo endpoints
+	demo := s.router.Group("/demo")
+	{
+		// Load testing
+		demo.POST("/load-test", s.handlers.DemoHandler.StartLoadTest)
+		demo.GET("/load-test/status", s.handlers.DemoHandler.GetLoadTestStatus)
+		demo.GET("/load-test/results", s.handlers.DemoHandler.GetLoadTestResults)
+		demo.DELETE("/load-test", s.handlers.DemoHandler.StopLoadTest)
+
+		// Chaos testing
+		demo.POST("/chaos-test", s.handlers.DemoHandler.StartChaosTest)
+		demo.GET("/chaos-test/status", s.handlers.DemoHandler.GetChaosTestStatus)
+		demo.DELETE("/chaos-test", s.handlers.DemoHandler.StopChaosTest)
+
+		// System management
+		demo.POST("/reset", s.handlers.DemoHandler.ResetSystem)
+		demo.GET("/status", s.handlers.DemoHandler.GetSystemStatus)
+	}
+
 	// Root health check
 	s.router.GET("/health", s.handlers.MetricsHandler.GetHealth)
 }
@@ -215,13 +238,15 @@ func DefaultConfig() *Config {
 type DependencyContainer struct {
 	orderService   handlers.OrderService
 	metricsService handlers.MetricsService
+	demoController handlers.DemoController
 }
 
 // NewDependencyContainer creates a new dependency container
-func NewDependencyContainer(orderService handlers.OrderService, metricsService handlers.MetricsService) Dependencies {
+func NewDependencyContainer(orderService handlers.OrderService, metricsService handlers.MetricsService, demoController handlers.DemoController) Dependencies {
 	return &DependencyContainer{
 		orderService:   orderService,
 		metricsService: metricsService,
+		demoController: demoController,
 	}
 }
 
@@ -233,4 +258,9 @@ func (dc *DependencyContainer) GetOrderService() handlers.OrderService {
 // GetMetricsService returns the metrics service
 func (dc *DependencyContainer) GetMetricsService() handlers.MetricsService {
 	return dc.metricsService
+}
+
+// GetDemoController returns the demo controller
+func (dc *DependencyContainer) GetDemoController() handlers.DemoController {
+	return dc.demoController
 }

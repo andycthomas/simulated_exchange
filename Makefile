@@ -109,8 +109,8 @@ docker-test-unit: ## Run unit tests in Docker
 
 docker-test-e2e: ## Run E2E tests with Docker Compose
 	@echo "🐳 Running E2E tests with Docker Compose..."
-	docker-compose -f $(DOCKER_COMPOSE_FILE) up --build --abort-on-container-exit
-	docker-compose -f $(DOCKER_COMPOSE_FILE) down --volumes
+	docker compose -f $(DOCKER_COMPOSE_FILE) up --build --abort-on-container-exit
+	docker compose -f $(DOCKER_COMPOSE_FILE) down --volumes
 
 docker-test-all: docker-build ## Run comprehensive Docker test suite
 	@echo "🐳 Running comprehensive Docker test suite..."
@@ -129,8 +129,8 @@ load-test-medium: ## Run medium load test
 
 load-test-heavy: ## Run heavy load test (requires Docker)
 	@echo "🚀 Running heavy load test..."
-	docker-compose -f $(DOCKER_COMPOSE_FILE) up load-tester --abort-on-container-exit
-	docker-compose -f $(DOCKER_COMPOSE_FILE) down --volumes
+	docker compose -f $(DOCKER_COMPOSE_FILE) up load-tester --abort-on-container-exit
+	docker compose -f $(DOCKER_COMPOSE_FILE) down --volumes
 
 # Demo testing targets
 demo-test-scenarios: ## Test demo scenarios
@@ -145,20 +145,20 @@ demo-test-chaos: ## Test chaos scenarios
 
 demo-test-full: ## Run full demo system test
 	@echo "🎭 Running full demo system test..."
-	docker-compose -f $(DOCKER_COMPOSE_FILE) up demo-tester --abort-on-container-exit
-	docker-compose -f $(DOCKER_COMPOSE_FILE) down --volumes
+	docker compose -f $(DOCKER_COMPOSE_FILE) up demo-tester --abort-on-container-exit
+	docker compose -f $(DOCKER_COMPOSE_FILE) down --volumes
 
 # Cleanup targets
 clean: ## Clean test results and artifacts
 	@echo "🧹 Cleaning test results and artifacts..."
 	rm -rf $(TEST_RESULTS_DIR)
 	rm -f coverage.out coverage.html coverage.txt
-	docker-compose -f $(DOCKER_COMPOSE_FILE) down --volumes --remove-orphans 2>/dev/null || true
+	docker compose -f $(DOCKER_COMPOSE_FILE) down --volumes --remove-orphans 2>/dev/null || true
 	docker system prune -f --filter "label=project=$(PROJECT_NAME)" 2>/dev/null || true
 
 clean-docker: ## Clean Docker images and containers
 	@echo "🐳 Cleaning Docker images and containers..."
-	docker-compose -f $(DOCKER_COMPOSE_FILE) down --volumes --remove-orphans --rmi all 2>/dev/null || true
+	docker compose -f $(DOCKER_COMPOSE_FILE) down --volumes --remove-orphans --rmi all 2>/dev/null || true
 	docker image prune -f --filter "label=project=$(PROJECT_NAME)" 2>/dev/null || true
 
 # Development targets

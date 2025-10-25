@@ -11,6 +11,7 @@ import (
 	"simulated_exchange/internal/api/dto"
 	"simulated_exchange/internal/api/handlers"
 	"simulated_exchange/internal/config"
+	demomock "simulated_exchange/internal/demo/mock"
 	"simulated_exchange/internal/metrics"
 	"simulated_exchange/internal/simulation"
 	"simulated_exchange/internal/types"
@@ -25,6 +26,9 @@ type Container struct {
 	orderService   OrderService
 	metricsService MetricsService
 	healthService  HealthServiceInterface
+
+	// Demo components
+	demoController handlers.DemoController
 
 	// Simulation components
 	marketSimulator MarketSimulator
@@ -125,6 +129,9 @@ func (c *Container) initializeCoreServices() error {
 	// Initialize metrics service
 	c.metricsService = NewMockMetricsService(c.config.Metrics, c.logger)
 
+	// Initialize demo controller
+	c.demoController = demomock.NewController(c.logger)
+
 	c.logger.Info("Core services initialized successfully")
 	return nil
 }
@@ -214,7 +221,7 @@ func (c *Container) initializeAPIComponents() error {
 	c.logger.Info("Initializing API components")
 
 	// Create dependency container for API
-	deps := api.NewDependencyContainer(c.orderService, c.metricsService)
+	deps := api.NewDependencyContainer(c.orderService, c.metricsService, c.demoController)
 
 	// Create server configuration
 	serverConfig := &api.Config{
@@ -555,3 +562,4 @@ func (s *SimulationTradingEngine) PlaceOrder(order dto.PlaceOrderRequest) (inter
 		"status":   "placed",
 	}, nil
 }
+
