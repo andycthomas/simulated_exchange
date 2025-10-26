@@ -195,16 +195,17 @@ func (m *Controller) TriggerChaosTest(ctx context.Context, scenario demo.ChaosTe
 	m.logger.Info("Starting chaos test", "type", scenario.Type, "severity", scenario.Severity)
 
 	m.chaosTestStatus = &demo.ChaosTestStatus{
-		IsRunning:    true,
-		Phase:        demo.ChaosPhaseInjecting,
-		Scenario:     &scenario,
-		StartTime:    time.Now(),
-		ImpactMetrics: &demo.ChaosImpactMetrics{
+		IsRunning:       true,
+		Phase:           demo.ChaosPhaseInjection,
+		Scenario:        &scenario,
+		StartTime:       time.Now(),
+		Metrics: &demo.ChaosTestMetrics{
 			ServiceDegradation: 0,
 			ResilienceScore:    1.0,
 			ErrorsGenerated:    0,
 		},
-		Observations: []demo.ChaosObservation{},
+		AffectedTargets: []string{},
+		Errors:          []demo.ChaosTestError{},
 	}
 
 	// Start background chaos test simulation
@@ -217,7 +218,7 @@ func (m *Controller) simulateChaosTest(ctx context.Context, scenario demo.ChaosT
 	defer func() {
 		m.mutex.Lock()
 		m.chaosTestStatus.IsRunning = false
-		m.chaosTestStatus.Phase = demo.ChaosPhaseRecovered
+		m.chaosTestStatus.Phase = demo.ChaosPhaseCompleted
 		m.mutex.Unlock()
 		m.logger.Info("Chaos test completed")
 	}()
@@ -242,34 +243,34 @@ func (m *Controller) simulateChaosTest(ctx context.Context, scenario demo.ChaosT
 
 			// Update phase based on time
 			if elapsed < scenario.Duration/10 {
-				m.chaosTestStatus.Phase = demo.ChaosPhaseInjecting
+				m.chaosTestStatus.Phase = demo.ChaosPhaseInjection
 			} else if elapsed < scenario.Duration*9/10 {
-				m.chaosTestStatus.Phase = demo.ChaosPhaseObserving
+				m.chaosTestStatus.Phase = demo.ChaosPhaseSustained
 			} else {
-				m.chaosTestStatus.Phase = demo.ChaosPhaseRecovering
+				m.chaosTestStatus.Phase = demo.ChaosPhaseRecovery
 			}
 
 			// Simulate impact metrics based on chaos type
-			if m.chaosTestStatus.ImpactMetrics != nil {
+			if m.chaosTestStatus.Metrics != nil {
 				progress := float64(elapsed) / float64(scenario.Duration)
 
 				switch scenario.Type {
 				case demo.ChaosLatencyInjection:
-					m.chaosTestStatus.ImpactMetrics.ServiceDegradation = 0.3 * progress
-					m.chaosTestStatus.ImpactMetrics.ResilienceScore = 1.0 - (0.2 * progress)
+					m.chaosTestStatus.Metrics.ServiceDegradation = 0.3 * progress
+					m.chaosTestStatus.Metrics.ResilienceScore = 1.0 - (0.2 * progress)
 				case demo.ChaosErrorSimulation:
-					m.chaosTestStatus.ImpactMetrics.ServiceDegradation = 0.5 * progress
-					m.chaosTestStatus.ImpactMetrics.ResilienceScore = 1.0 - (0.4 * progress)
-					m.chaosTestStatus.ImpactMetrics.ErrorsGenerated = int64(progress * 100)
+					m.chaosTestStatus.Metrics.ServiceDegradation = 0.5 * progress
+					m.chaosTestStatus.Metrics.ResilienceScore = 1.0 - (0.4 * progress)
+					m.chaosTestStatus.Metrics.ErrorsGenerated = int(progress * 100)
 				case demo.ChaosResourceExhaustion:
-					m.chaosTestStatus.ImpactMetrics.ServiceDegradation = 0.7 * progress
-					m.chaosTestStatus.ImpactMetrics.ResilienceScore = 1.0 - (0.6 * progress)
+					m.chaosTestStatus.Metrics.ServiceDegradation = 0.7 * progress
+					m.chaosTestStatus.Metrics.ResilienceScore = 1.0 - (0.6 * progress)
 				default:
-					m.chaosTestStatus.ImpactMetrics.ServiceDegradation = 0.2 * progress
-					m.chaosTestStatus.ImpactMetrics.ResilienceScore = 1.0 - (0.1 * progress)
+					m.chaosTestStatus.Metrics.ServiceDegradation = 0.2 * progress
+					m.chaosTestStatus.Metrics.ResilienceScore = 1.0 - (0.1 * progress)
 				}
 
-				m.chaosTestStatus.ImpactMetrics.Timestamp = time.Now()
+				m.chaosTestStatus.Metrics.Timestamp = time.Now()
 			}
 
 			m.mutex.Unlock()
@@ -287,7 +288,7 @@ func (m *Controller) StopChaosTest(ctx context.Context) error {
 
 	m.logger.Info("Stopping chaos test")
 	m.chaosTestStatus.IsRunning = false
-	m.chaosTestStatus.Phase = demo.ChaosPhaseRecovered
+	m.chaosTestStatus.Phase = demo.ChaosPhaseCompleted
 
 	return nil
 }

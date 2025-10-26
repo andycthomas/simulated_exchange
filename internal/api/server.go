@@ -160,6 +160,7 @@ func (s *Server) setupRoutes() {
 		// Chaos testing
 		demo.POST("/chaos-test", s.handlers.DemoHandler.StartChaosTest)
 		demo.GET("/chaos-test/status", s.handlers.DemoHandler.GetChaosTestStatus)
+		demo.GET("/chaos-test/results", s.handlers.DemoHandler.GetChaosTestResults)
 		demo.DELETE("/chaos-test", s.handlers.DemoHandler.StopChaosTest)
 
 		// System management

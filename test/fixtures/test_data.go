@@ -114,9 +114,6 @@ func GetLoadTestScenarios() []demo.LoadTestScenario {
 			ConcurrentUsers: 10,
 			Symbols:         []string{"BTCUSD", "ETHUSD"},
 			OrderTypes:      []string{"market", "limit"},
-			RampUpTime:      5 * time.Second,
-			SustainTime:     20 * time.Second,
-			RampDownTime:    5 * time.Second,
 		},
 		{
 			Name:            "E2E Medium Load",
@@ -127,9 +124,6 @@ func GetLoadTestScenarios() []demo.LoadTestScenario {
 			ConcurrentUsers: 50,
 			Symbols:         []string{"BTCUSD", "ETHUSD", "ADAUSD", "DOTUSD"},
 			OrderTypes:      []string{"market", "limit"},
-			RampUpTime:      10 * time.Second,
-			SustainTime:     40 * time.Second,
-			RampDownTime:    10 * time.Second,
 		},
 		{
 			Name:            "E2E Heavy Load",
@@ -140,9 +134,6 @@ func GetLoadTestScenarios() []demo.LoadTestScenario {
 			ConcurrentUsers: 200,
 			Symbols:         []string{"BTCUSD", "ETHUSD", "ADAUSD", "DOTUSD", "SOLUSD"},
 			OrderTypes:      []string{"market", "limit"},
-			RampUpTime:      20 * time.Second,
-			SustainTime:     80 * time.Second,
-			RampDownTime:    20 * time.Second,
 		},
 		{
 			Name:            "E2E Demo Presentation",
@@ -153,9 +144,6 @@ func GetLoadTestScenarios() []demo.LoadTestScenario {
 			ConcurrentUsers: 25,
 			Symbols:         []string{"BTCUSD", "ETHUSD", "ADAUSD"},
 			OrderTypes:      []string{"market", "limit"},
-			RampUpTime:      30 * time.Second,
-			SustainTime:     4 * time.Minute,
-			RampDownTime:    30 * time.Second,
 		},
 	}
 }
@@ -169,10 +157,8 @@ func GetChaosTestScenarios() []demo.ChaosTestScenario {
 			Type:        demo.ChaosLatencyInjection,
 			Duration:    30 * time.Second,
 			Severity:    demo.ChaosLow,
-			Parameters: map[string]interface{}{
-				"latency_ms":    100,
-				"jitter_ms":     20,
-				"failure_rate":  0.1,
+			Parameters: demo.ChaosParams{
+				LatencyMs: 100,
 			},
 		},
 		{
@@ -181,10 +167,8 @@ func GetChaosTestScenarios() []demo.ChaosTestScenario {
 			Type:        demo.ChaosErrorSimulation,
 			Duration:    45 * time.Second,
 			Severity:    demo.ChaosMedium,
-			Parameters: map[string]interface{}{
-				"error_rate":     0.15,
-				"error_types":    []string{"timeout", "connection_reset", "server_error"},
-				"recovery_time":  5,
+			Parameters: demo.ChaosParams{
+				ErrorRate: 0.15,
 			},
 		},
 		{
@@ -193,10 +177,9 @@ func GetChaosTestScenarios() []demo.ChaosTestScenario {
 			Type:        demo.ChaosResourceExhaustion,
 			Duration:    60 * time.Second,
 			Severity:    demo.ChaosHigh,
-			Parameters: map[string]interface{}{
-				"cpu_usage":    80.0,
-				"memory_usage": 75.0,
-				"disk_usage":   85.0,
+			Parameters: demo.ChaosParams{
+				CPULimitPercent: 80.0,
+				MemoryLimitMB:   768,
 			},
 		},
 		{
@@ -205,10 +188,9 @@ func GetChaosTestScenarios() []demo.ChaosTestScenario {
 			Type:        demo.ChaosNetworkPartition,
 			Duration:    90 * time.Second,
 			Severity:    demo.ChaosHigh,
-			Parameters: map[string]interface{}{
-				"partition_probability": 0.2,
-				"recovery_time":         10,
-				"affected_services":     []string{"trading_engine", "metrics_service"},
+			Parameters: demo.ChaosParams{
+				NetworkDelayMs:    100,
+				PacketLossPercent: 20.0,
 			},
 		},
 	}

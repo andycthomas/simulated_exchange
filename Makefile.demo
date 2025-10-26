@@ -489,13 +489,13 @@ demo-chaos-latency: ## Chaos: Latency injection demo
 	@$(ECHO) "$(YELLOW)Injecting 100ms latency into 50% of requests...$(NC)"
 	@curl -s -X POST $(CHAOSTEST_URL) \
 		-H "Content-Type: application/json" \
-		-d '{"type":"latency_injection","duration":"60s","severity":"medium","target":{"component":"trading_engine","percentage":50},"parameters":{"latency_ms":100},"recovery":{"auto_recover":true,"graceful_recover":true}}' | jq '.'
+		-d '{"type":"latency_injection","duration":60,"severity":"medium","target":{"component":"trading_engine","percentage":50},"parameters":{"latency_ms":100},"recovery":{"auto_recover":true,"graceful_recover":true}}' | jq '.'
 	@$(ECHO) ""
 	@$(ECHO) "$(YELLOW)Monitoring chaos impact (every 15s)...$(NC)"
 	@for i in 1 2 3 4; do \
 		sleep 15; \
 		printf '%b\n' "$(CYAN)[$$i5s]$(NC) Chaos status:"; \
-		curl -s $(CHAOSTEST_URL)/status | jq '{phase, metrics: {service_degradation, resilience_score, errors_generated}}'; \
+		curl -s $(CHAOSTEST_URL)/status | jq '.data | {phase, metrics: {service_degradation: .metrics.service_degradation, resilience_score: .metrics.resilience_score, errors_generated: .metrics.errors_generated}}'; \
 		echo ""; \
 	done
 	@$(ECHO) "$(GREEN)✓ Chaos test complete$(NC)"
@@ -510,11 +510,11 @@ demo-chaos-errors: ## Chaos: Error simulation demo
 	@$(ECHO) ""
 	@curl -s -X POST $(CHAOSTEST_URL) \
 		-H "Content-Type: application/json" \
-		-d '{"type":"error_simulation","duration":"45s","severity":"low","target":{"component":"order_service","percentage":25},"parameters":{"error_rate":0.15},"recovery":{"auto_recover":true,"graceful_recover":true}}' | jq '.'
+		-d '{"type":"error_simulation","duration":45,"severity":"low","target":{"component":"order_service","percentage":25},"parameters":{"error_rate":0.15},"recovery":{"auto_recover":true,"graceful_recover":true}}' | jq '.'
 	@$(ECHO) ""
 	@for i in 1 2 3; do \
 		sleep 15; \
-		curl -s $(CHAOSTEST_URL)/status | jq '{phase, metrics}'; \
+		curl -s $(CHAOSTEST_URL)/status | jq '.data | {phase, metrics}'; \
 		echo ""; \
 	done
 

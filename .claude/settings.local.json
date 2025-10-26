@@ -62,7 +62,10 @@
       "Bash(sudo systemctl disable:*)",
       "Bash(sudo systemctl status:*)",
       "Bash(pkill:*)",
-      "Bash(go clean:*)"
+      "Bash(go clean:*)",
+      "Read(//proc/**)",
+      "Bash(ulimit:*)",
+      "Bash(lscpu:*)"
     ],
     "deny": [],
     "ask": []

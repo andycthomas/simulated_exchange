@@ -18,6 +18,7 @@ type DemoHandler interface {
 	StopLoadTest(c *gin.Context)
 	StartChaosTest(c *gin.Context)
 	GetChaosTestStatus(c *gin.Context)
+	GetChaosTestResults(c *gin.Context)
 	StopChaosTest(c *gin.Context)
 	ResetSystem(c *gin.Context)
 	GetSystemStatus(c *gin.Context)
@@ -245,40 +246,235 @@ func (h *DemoHandlerImpl) StopLoadTest(c *gin.Context) {
 	})
 }
 
+// ChaosTestRequest represents the request for starting a chaos test
+type ChaosTestRequest struct {
+	Type       string                 `json:"type"`
+	Duration   int                    `json:"duration"` // seconds, but can also accept string like "60s"
+	Severity   string                 `json:"severity"`
+	Target     map[string]interface{} `json:"target"`
+	Parameters map[string]interface{} `json:"parameters"`
+	Recovery   map[string]interface{} `json:"recovery"`
+}
+
 // StartChaosTest handles POST /demo/chaos-test
 func (h *DemoHandlerImpl) StartChaosTest(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusNotImplemented, dto.APIResponse{
-		Success: false,
-		Error: &dto.APIError{
-			Code:    "NOT_IMPLEMENTED",
-			Message: "Chaos testing not yet implemented",
+	var req ChaosTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.APIResponse{
+			Success: false,
+			Error: &dto.APIError{
+				Code:    "INVALID_REQUEST",
+				Message: "Invalid request body",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	// Set defaults
+	if req.Duration == 0 {
+		req.Duration = 60
+	}
+	if req.Severity == "" {
+		req.Severity = "medium"
+	}
+
+	// Create scenario
+	scenario := demo.ChaosTestScenario{
+		Name:        "API Chaos Test - " + req.Type,
+		Description: "Chaos test triggered via API",
+		Type:        demo.ChaosType(req.Type),
+		Duration:    time.Duration(req.Duration) * time.Second,
+		Severity:    demo.ChaosSeverity(req.Severity),
+		Target: demo.ChaosTarget{
+			Component: getStringFromMap(req.Target, "component", "trading_engine"),
+			Percentage: getFloatFromMap(req.Target, "percentage", 50),
+		},
+		Parameters: demo.ChaosParams{
+			LatencyMs:       int(getFloatFromMap(req.Parameters, "latency_ms", 100)),
+			ErrorRate:       getFloatFromMap(req.Parameters, "error_rate", 0.1),
+			CPULimitPercent: getFloatFromMap(req.Parameters, "cpu_percentage", 80),
+			MemoryLimitMB:   int(getFloatFromMap(req.Parameters, "memory_limit_mb", 1024)),
+		},
+		Recovery: demo.RecoveryConfig{
+			AutoRecover:     getBoolFromMap(req.Recovery, "auto_recover", true),
+			GracefulRecover: getBoolFromMap(req.Recovery, "graceful_recover", true),
+		},
+	}
+
+	// Start chaos test
+	if err := h.demoController.TriggerChaosTest(c.Request.Context(), scenario); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.APIResponse{
+			Success: false,
+			Error: &dto.APIError{
+				Code:    "CHAOS_TEST_FAILED",
+				Message: "Failed to start chaos test",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message":        "Chaos test started successfully",
+			"type":           req.Type,
+			"duration":       req.Duration,
+			"severity":       req.Severity,
 		},
 	})
 }
 
 // GetChaosTestStatus handles GET /demo/chaos-test/status
 func (h *DemoHandlerImpl) GetChaosTestStatus(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusNotImplemented, dto.APIResponse{
-		Success: false,
-		Error: &dto.APIError{
-			Code:    "NOT_IMPLEMENTED",
-			Message: "Chaos testing not yet implemented",
-		},
+	status, err := h.demoController.GetChaosTestStatus(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.APIResponse{
+			Success: false,
+			Error: &dto.APIError{
+				Code:    "STATUS_FETCH_FAILED",
+				Message: "Failed to get chaos test status",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	responseData := map[string]interface{}{
+		"is_running": status.IsRunning,
+		"phase":      status.Phase,
+	}
+
+	if status.Scenario != nil {
+		responseData["scenario"] = map[string]interface{}{
+			"type":     status.Scenario.Type,
+			"severity": status.Scenario.Severity,
+			"duration": status.Scenario.Duration.Seconds(),
+		}
+	}
+
+	if status.Metrics != nil {
+		responseData["metrics"] = map[string]interface{}{
+			"service_degradation": status.Metrics.ServiceDegradation,
+			"resilience_score":    status.Metrics.ResilienceScore,
+			"errors_generated":    status.Metrics.ErrorsGenerated,
+		}
+	}
+
+	c.JSON(http.StatusOK, dto.APIResponse{
+		Success: true,
+		Data:    responseData,
+	})
+}
+
+// GetChaosTestResults handles GET /demo/chaos-test/results
+func (h *DemoHandlerImpl) GetChaosTestResults(c *gin.Context) {
+	status, err := h.demoController.GetChaosTestStatus(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.APIResponse{
+			Success: false,
+			Error: &dto.APIError{
+				Code:    "RESULTS_FETCH_FAILED",
+				Message: "Failed to get chaos test results",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	responseData := map[string]interface{}{
+		"completed":  !status.IsRunning && status.Phase == demo.ChaosPhaseCompleted,
+		"start_time": status.StartTime,
+		"phase":      status.Phase,
+	}
+
+	if status.Scenario != nil {
+		responseData["scenario"] = map[string]interface{}{
+			"type":     status.Scenario.Type,
+			"severity": status.Scenario.Severity,
+			"duration": status.Scenario.Duration.Seconds(),
+			"target":   status.Scenario.Target,
+		}
+	}
+
+	if status.Metrics != nil {
+		responseData["impact"] = map[string]interface{}{
+			"service_degradation": status.Metrics.ServiceDegradation,
+			"resilience_score":    status.Metrics.ResilienceScore,
+			"errors_generated":    status.Metrics.ErrorsGenerated,
+		}
+	}
+
+	responseData["affected_targets_count"] = len(status.AffectedTargets)
+	responseData["errors_count"] = len(status.Errors)
+
+	c.JSON(http.StatusOK, dto.APIResponse{
+		Success: true,
+		Data:    responseData,
 	})
 }
 
 // StopChaosTest handles DELETE /demo/chaos-test
 func (h *DemoHandlerImpl) StopChaosTest(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusNotImplemented, dto.APIResponse{
-		Success: false,
-		Error: &dto.APIError{
-			Code:    "NOT_IMPLEMENTED",
-			Message: "Chaos testing not yet implemented",
+	if err := h.demoController.StopChaosTest(c.Request.Context()); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.APIResponse{
+			Success: false,
+			Error: &dto.APIError{
+				Code:    "STOP_FAILED",
+				Message: "Failed to stop chaos test",
+				Details: err.Error(),
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message": "Chaos test stopped successfully",
 		},
 	})
+}
+
+// Helper functions to extract values from map[string]interface{}
+func getStringFromMap(m map[string]interface{}, key string, defaultVal string) string {
+	if m == nil {
+		return defaultVal
+	}
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return defaultVal
+}
+
+func getFloatFromMap(m map[string]interface{}, key string, defaultVal float64) float64 {
+	if m == nil {
+		return defaultVal
+	}
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return v
+		case int:
+			return float64(v)
+		}
+	}
+	return defaultVal
+}
+
+func getBoolFromMap(m map[string]interface{}, key string, defaultVal bool) bool {
+	if m == nil {
+		return defaultVal
+	}
+	if val, ok := m[key]; ok {
+		if b, ok := val.(bool); ok {
+			return b
+		}
+	}
+	return defaultVal
 }
 
 // ResetSystem handles POST /demo/reset
