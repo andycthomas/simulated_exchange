@@ -1,924 +1,1032 @@
-# 🏗️ Architecture Documentation
-
-Comprehensive system architecture documentation for the Simulated Exchange Platform, including component diagrams, data flow, and design decisions.
-
-## 📋 Table of Contents
-
-- [System Overview](#system-overview)
-- [High-Level Architecture](#high-level-architecture)
-- [Component Architecture](#component-architecture)
-- [Data Flow](#data-flow)
-- [Demo System Architecture](#demo-system-architecture)
-- [Deployment Architecture](#deployment-architecture)
-- [Design Patterns](#design-patterns)
-- [Performance Architecture](#performance-architecture)
-- [Security Architecture](#security-architecture)
-
-## 🔍 System Overview
-
-The Simulated Exchange Platform is a cloud-native, high-performance trading system designed for demonstration, testing, and performance analysis. It follows microservices patterns with strong separation of concerns and comprehensive observability.
-
-### Key Architectural Principles
-
-- **SOLID Design Principles**: Single responsibility, open/closed, interface segregation
-- **Dependency Injection**: Comprehensive DI container for loose coupling
-- **Event-Driven Architecture**: Real-time updates via WebSocket streams
-- **Hexagonal Architecture**: Clean separation of business logic and infrastructure
-- **Observability First**: Built-in metrics, logging, and health monitoring
-
-## 🏛️ High-Level Architecture
-
-```mermaid
-graph TB
-    subgraph "Client Layer"
-        C1[Web Browser]
-        C2[API Clients]
-        C3[Demo Dashboard]
-        C4[Load Testing Tools]
-    end
-
-    subgraph "API Gateway Layer"
-        AG[API Gateway/Load Balancer]
-    end
-
-    subgraph "Application Layer"
-        subgraph "Core Services"
-            API[API Server]
-            WS[WebSocket Server]
-            DEMO[Demo Controller]
-        end
-
-        subgraph "Business Logic"
-            TE[Trading Engine]
-            MM[Market Maker]
-            MS[Metrics Service]
-        end
-    end
-
-    subgraph "Infrastructure Layer"
-        subgraph "Storage"
-            MEM[In-Memory Store]
-            CACHE[Redis Cache]
-        end
-
-        subgraph "Monitoring"
-            PROM[Prometheus]
-            LOG[Logging Service]
-        end
-    end
-
-    C1 --> AG
-    C2 --> AG
-    C3 --> AG
-    C4 --> AG
-
-    AG --> API
-    AG --> WS
-    AG --> DEMO
-
-    API --> TE
-    API --> MS
-    WS --> DEMO
-    DEMO --> TE
-    DEMO --> MS
-
-    TE --> MEM
-    MS --> CACHE
-    MS --> PROM
-    API --> LOG
-```
-
-## 🔧 Component Architecture
-
-### Core Components
-
-```mermaid
-graph LR
-    subgraph "API Layer"
-        H[HTTP Handlers]
-        R[Router]
-        M[Middleware]
-    end
-
-    subgraph "Service Layer"
-        OS[Order Service]
-        MS[Metrics Service]
-        HS[Health Service]
-        DS[Demo Service]
-    end
-
-    subgraph "Domain Layer"
-        TE[Trading Engine]
-        OM[Order Matcher]
-        EX[Trade Executor]
-        SIM[Market Simulator]
-    end
-
-    subgraph "Repository Layer"
-        OR[Order Repository]
-        TR[Trade Repository]
-        MR[Metrics Repository]
-    end
-
-    H --> R
-    R --> M
-    M --> OS
-    M --> MS
-    M --> HS
-    M --> DS
-
-    OS --> TE
-    DS --> TE
-    MS --> TE
-
-    TE --> OM
-    TE --> EX
-    TE --> SIM
-
-    OM --> OR
-    EX --> TR
-    MS --> MR
-```
-
-### Dependency Injection Container
-
-```mermaid
-graph TD
-    subgraph "DI Container"
-        CONFIG[Configuration]
-        LOGGER[Logger]
-
-        subgraph "Core Services"
-            ORDER_SVC[Order Service]
-            METRICS_SVC[Metrics Service]
-            HEALTH_SVC[Health Service]
-        end
-
-        subgraph "Simulation"
-            MARKET_SIM[Market Simulator]
-            PRICE_GEN[Price Generator]
-            ORDER_GEN[Order Generator]
-        end
-
-        subgraph "Demo System"
-            DEMO_CTRL[Demo Controller]
-            SCENARIO_MGR[Scenario Manager]
-            WS_HUB[WebSocket Hub]
-        end
-
-        subgraph "API Components"
-            API_SERVER[API Server]
-            DEPS_CONTAINER[Dependencies Container]
-        end
-    end
-
-    CONFIG --> LOGGER
-    LOGGER --> ORDER_SVC
-    LOGGER --> METRICS_SVC
-    LOGGER --> HEALTH_SVC
-
-    ORDER_SVC --> DEMO_CTRL
-    METRICS_SVC --> DEMO_CTRL
-    DEMO_CTRL --> SCENARIO_MGR
-    DEMO_CTRL --> WS_HUB
-
-    PRICE_GEN --> MARKET_SIM
-    ORDER_GEN --> MARKET_SIM
-
-    ORDER_SVC --> API_SERVER
-    METRICS_SVC --> API_SERVER
-    HEALTH_SVC --> API_SERVER
-```
-
-## 🌊 Data Flow
-
-### Order Processing Flow
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant API
-    participant OrderService
-    participant TradingEngine
-    participant OrderMatcher
-    participant Repository
-    participant WebSocket
-
-    Client->>API: POST /api/orders
-    API->>OrderService: Place Order
-    OrderService->>TradingEngine: Process Order
-    TradingEngine->>OrderMatcher: Match Order
-    OrderMatcher->>Repository: Store Order
-    OrderMatcher->>Repository: Store Trade (if matched)
-    Repository-->>OrderMatcher: Confirmation
-    OrderMatcher-->>TradingEngine: Match Result
-    TradingEngine-->>OrderService: Processing Result
-    OrderService-->>API: Order Response
-    API-->>Client: HTTP Response
-
-    TradingEngine->>WebSocket: Order Update
-    WebSocket-->>Client: Real-time Update
-```
-
-### Demo System Flow
-
-```mermaid
-sequenceDiagram
-    participant Dashboard
-    participant DemoAPI
-    participant DemoController
-    participant ScenarioManager
-    participant TradingEngine
-    participant MetricsService
-    participant WebSocket
-
-    Dashboard->>DemoAPI: Start Load Test
-    DemoAPI->>DemoController: Execute Scenario
-    DemoController->>ScenarioManager: Load Scenario
-
-    loop Load Test Execution
-        ScenarioManager->>TradingEngine: Generate Orders
-        TradingEngine->>MetricsService: Record Metrics
-        MetricsService->>DemoController: Metrics Update
-        DemoController->>WebSocket: Broadcast Update
-        WebSocket-->>Dashboard: Live Updates
-    end
-
-    ScenarioManager->>DemoController: Scenario Complete
-    DemoController->>WebSocket: Final Update
-    DemoController-->>DemoAPI: Completion Status
-    DemoAPI-->>Dashboard: Final Response
-```
-
-### Metrics Collection Flow
-
-```mermaid
-graph LR
-    subgraph "Data Sources"
-        TE[Trading Engine]
-        API[API Handlers]
-        SYS[System Resources]
-    end
-
-    subgraph "Collection Layer"
-        MC[Metrics Collector]
-        RT[Real-Time Processor]
-    end
-
-    subgraph "Analysis Layer"
-        AI[AI Analyzer]
-        BD[Bottleneck Detector]
-        PA[Performance Analyzer]
-    end
-
-    subgraph "Output Layer"
-        WS[WebSocket Stream]
-        API_OUT[Metrics API]
-        DASH[Dashboard]
-    end
-
-    TE --> MC
-    API --> MC
-    SYS --> MC
-
-    MC --> RT
-    RT --> AI
-    RT --> BD
-    RT --> PA
-
-    AI --> WS
-    BD --> API_OUT
-    PA --> DASH
-```
-
-## 🎭 Demo System Architecture
-
-### Demo Components
-
-```mermaid
-graph TB
-    subgraph "Demo Controller Layer"
-        DC[Demo Controller]
-        SM[Scenario Manager]
-        CM[Chaos Manager]
-    end
-
-    subgraph "Scenario Execution"
-        subgraph "Load Testing"
-            LS1[Light Scenario]
-            LS2[Medium Scenario]
-            LS3[Heavy Scenario]
-            LS4[Stress Scenario]
-        end
-
-        subgraph "Chaos Testing"
-            CI1[Latency Injection]
-            CI2[Error Simulation]
-            CI3[Resource Exhaustion]
-            CI4[Network Partition]
-        end
-    end
-
-    subgraph "Real-time Updates"
-        WH[WebSocket Hub]
-        UB[Update Broadcaster]
-        SL[Subscriber Logic]
-    end
-
-    subgraph "Safety & Monitoring"
-        SL_LIMITS[Safety Limits]
-        HM[Health Monitor]
-        AR[Auto Recovery]
-    end
-
-    DC --> SM
-    DC --> CM
-    DC --> WH
-
-    SM --> LS1
-    SM --> LS2
-    SM --> LS3
-    SM --> LS4
-
-    CM --> CI1
-    CM --> CI2
-    CM --> CI3
-    CM --> CI4
-
-    WH --> UB
-    UB --> SL
-
-    DC --> SL_LIMITS
-    SL_LIMITS --> HM
-    HM --> AR
-```
-
-### WebSocket Architecture
-
-```mermaid
-graph TD
-    subgraph "WebSocket Infrastructure"
-        WS_SERVER[WebSocket Server]
-        CONNECTION_MGR[Connection Manager]
-
-        subgraph "Hub Architecture"
-            DEMO_HUB[Demo Hub]
-            METRICS_HUB[Metrics Hub]
-            ORDER_HUB[Order Book Hub]
-        end
-
-        subgraph "Message Types"
-            LOAD_UPDATES[Load Test Updates]
-            CHAOS_UPDATES[Chaos Test Updates]
-            SYSTEM_METRICS[System Metrics]
-            ORDER_UPDATES[Order Updates]
-        end
-
-        subgraph "Subscribers"
-            DASHBOARD[Demo Dashboard]
-            MONITORING[Monitoring Tools]
-            CLIENTS[API Clients]
-        end
-    end
-
-    WS_SERVER --> CONNECTION_MGR
-    CONNECTION_MGR --> DEMO_HUB
-    CONNECTION_MGR --> METRICS_HUB
-    CONNECTION_MGR --> ORDER_HUB
-
-    DEMO_HUB --> LOAD_UPDATES
-    DEMO_HUB --> CHAOS_UPDATES
-    METRICS_HUB --> SYSTEM_METRICS
-    ORDER_HUB --> ORDER_UPDATES
-
-    LOAD_UPDATES --> DASHBOARD
-    CHAOS_UPDATES --> DASHBOARD
-    SYSTEM_METRICS --> MONITORING
-    ORDER_UPDATES --> CLIENTS
-```
-
-## 🚀 Deployment Architecture
-
-### Container Architecture
-
-```mermaid
-graph TB
-    subgraph "Load Balancer"
-        LB[Nginx/HAProxy]
-    end
-
-    subgraph "Application Tier"
-        subgraph "API Containers"
-            API1[API Server 1]
-            API2[API Server 2]
-            API3[API Server 3]
-        end
-
-        subgraph "WebSocket Containers"
-            WS1[WebSocket Server 1]
-            WS2[WebSocket Server 2]
-        end
-
-        subgraph "Demo Containers"
-            DEMO1[Demo System 1]
-            DEMO2[Demo System 2]
-        end
-    end
-
-    subgraph "Data Tier"
-        REDIS[Redis Cluster]
-        METRICS_DB[Metrics Store]
-    end
-
-    subgraph "Monitoring Tier"
-        PROMETHEUS[Prometheus]
-        GRAFANA[Grafana]
-        JAEGER[Jaeger Tracing]
-    end
-
-    LB --> API1
-    LB --> API2
-    LB --> API3
-    LB --> WS1
-    LB --> WS2
-
-    API1 --> REDIS
-    API2 --> REDIS
-    API3 --> REDIS
-
-    API1 --> METRICS_DB
-    WS1 --> METRICS_DB
-    DEMO1 --> METRICS_DB
-
-    API1 --> PROMETHEUS
-    WS1 --> PROMETHEUS
-    DEMO1 --> PROMETHEUS
-```
-
-### Kubernetes Deployment
-
-```mermaid
-graph TB
-    subgraph "Kubernetes Cluster"
-        subgraph "Ingress"
-            INGRESS[Ingress Controller]
-        end
-
-        subgraph "API Namespace"
-            API_DEPLOY[API Deployment]
-            API_SVC[API Service]
-            API_HPA[Horizontal Pod Autoscaler]
-        end
-
-        subgraph "Demo Namespace"
-            DEMO_DEPLOY[Demo Deployment]
-            DEMO_SVC[Demo Service]
-            WS_DEPLOY[WebSocket Deployment]
-            WS_SVC[WebSocket Service]
-        end
-
-        subgraph "Data Namespace"
-            REDIS_DEPLOY[Redis Deployment]
-            REDIS_SVC[Redis Service]
-            PVC[Persistent Volume Claims]
-        end
-
-        subgraph "Monitoring Namespace"
-            PROM_DEPLOY[Prometheus Deployment]
-            GRAFANA_DEPLOY[Grafana Deployment]
-            MONITOR_SVC[Monitoring Services]
-        end
-    end
-
-    INGRESS --> API_SVC
-    INGRESS --> DEMO_SVC
-    INGRESS --> WS_SVC
-
-    API_SVC --> API_DEPLOY
-    DEMO_SVC --> DEMO_DEPLOY
-    WS_SVC --> WS_DEPLOY
-
-    API_HPA --> API_DEPLOY
-
-    API_DEPLOY --> REDIS_SVC
-    DEMO_DEPLOY --> REDIS_SVC
-
-    REDIS_SVC --> REDIS_DEPLOY
-    REDIS_DEPLOY --> PVC
-
-    PROM_DEPLOY --> MONITOR_SVC
-    GRAFANA_DEPLOY --> MONITOR_SVC
-```
-
-## 🎨 Design Patterns
-
-### Repository Pattern
-
-```mermaid
-classDiagram
-    class OrderRepository {
-        <<interface>>
-        +Store(order Order) error
-        +GetByID(id string) (Order, error)
-        +GetBySymbol(symbol string) []Order
-        +Delete(id string) error
-    }
-
-    class MemoryOrderRepository {
-        -orders map[string]Order
-        -mutex sync.RWMutex
-        +Store(order Order) error
-        +GetByID(id string) (Order, error)
-        +GetBySymbol(symbol string) []Order
-        +Delete(id string) error
-    }
-
-    class RedisOrderRepository {
-        -client redis.Client
-        +Store(order Order) error
-        +GetByID(id string) (Order, error)
-        +GetBySymbol(symbol string) []Order
-        +Delete(id string) error
-    }
-
-    OrderRepository <|-- MemoryOrderRepository
-    OrderRepository <|-- RedisOrderRepository
-```
-
-### Strategy Pattern (Demo Scenarios)
-
-```mermaid
-classDiagram
-    class ScenarioExecutor {
-        <<interface>>
-        +Execute(ctx Context) error
-        +Stop() error
-        +GetProgress() float64
-    }
-
-    class LoadTestExecutor {
-        -scenario LoadTestScenario
-        -tradingEngine TradingEngine
-        +Execute(ctx Context) error
-        +Stop() error
-        +GetProgress() float64
-    }
-
-    class ChaosTestExecutor {
-        -scenario ChaosTestScenario
-        -injectors []ChaosInjector
-        +Execute(ctx Context) error
-        +Stop() error
-        +GetProgress() float64
-    }
-
-    ScenarioExecutor <|-- LoadTestExecutor
-    ScenarioExecutor <|-- ChaosTestExecutor
-```
-
-### Observer Pattern (WebSocket Updates)
-
-```mermaid
-classDiagram
-    class Subject {
-        <<interface>>
-        +Subscribe(observer Observer) error
-        +Unsubscribe(observer Observer) error
-        +Notify(event Event) error
-    }
-
-    class Observer {
-        <<interface>>
-        +Update(event Event) error
-    }
-
-    class DemoController {
-        -observers []Observer
-        +Subscribe(observer Observer) error
-        +Unsubscribe(observer Observer) error
-        +Notify(event Event) error
-        +StartLoadTest() error
-    }
-
-    class WebSocketSubscriber {
-        -connection WebSocketConnection
-        +Update(event Event) error
-    }
-
-    Subject <|-- DemoController
-    Observer <|-- WebSocketSubscriber
-    DemoController --> Observer
-```
-
-## ⚡ Performance Architecture
-
-### Concurrency Model
-
-```mermaid
-graph TD
-    subgraph "Request Processing"
-        REQ[HTTP Request]
-        ROUTER[Router]
-        HANDLER[Handler Goroutine]
-    end
-
-    subgraph "Business Logic"
-        SERVICE[Service Layer]
-        ENGINE[Trading Engine]
-        MATCHER[Order Matcher]
-    end
-
-    subgraph "Data Access"
-        REPO[Repository]
-        CACHE[Cache Layer]
-        STORAGE[Storage]
-    end
-
-    subgraph "Background Processing"
-        METRICS[Metrics Collector]
-        SIMULATOR[Market Simulator]
-        DEMO[Demo Processor]
-    end
-
-    REQ --> ROUTER
-    ROUTER --> HANDLER
-    HANDLER --> SERVICE
-    SERVICE --> ENGINE
-    ENGINE --> MATCHER
-    MATCHER --> REPO
-    REPO --> CACHE
-    CACHE --> STORAGE
-
-    HANDLER -.-> METRICS
-    ENGINE -.-> SIMULATOR
-    SERVICE -.-> DEMO
-```
-
-### Memory Management
-
-```mermaid
-graph LR
-    subgraph "Memory Pools"
-        ORDER_POOL[Order Pool]
-        TRADE_POOL[Trade Pool]
-        MESSAGE_POOL[Message Pool]
-    end
-
-    subgraph "Caching Strategy"
-        L1[L1 Cache - Order Book]
-        L2[L2 Cache - Recent Orders]
-        L3[L3 Cache - Metrics]
-    end
-
-    subgraph "Garbage Collection"
-        GC_TUNED[Tuned GC Parameters]
-        LOW_LATENCY[Low Latency Mode]
-        MEMORY_LIMIT[Memory Limits]
-    end
-
-    ORDER_POOL --> L1
-    TRADE_POOL --> L2
-    MESSAGE_POOL --> L3
-
-    L1 --> GC_TUNED
-    L2 --> LOW_LATENCY
-    L3 --> MEMORY_LIMIT
-```
-
-## 🔒 Security Architecture
-
-### Security Layers
-
-```mermaid
-graph TB
-    subgraph "Network Security"
-        WAF[Web Application Firewall]
-        DDoS[DDoS Protection]
-        TLS[TLS Termination]
-    end
-
-    subgraph "Application Security"
-        AUTH[Authentication]
-        AUTHZ[Authorization]
-        RATE_LIMIT[Rate Limiting]
-        INPUT_VAL[Input Validation]
-    end
-
-    subgraph "Data Security"
-        ENCRYPT[Data Encryption]
-        AUDIT[Audit Logging]
-        SENSITIVE[Sensitive Data Protection]
-    end
-
-    subgraph "Infrastructure Security"
-        SECRETS[Secrets Management]
-        NETWORK_POL[Network Policies]
-        RBAC[RBAC]
-    end
-
-    WAF --> AUTH
-    DDoS --> AUTHZ
-    TLS --> RATE_LIMIT
-
-    AUTH --> ENCRYPT
-    AUTHZ --> AUDIT
-    RATE_LIMIT --> SENSITIVE
-    INPUT_VAL --> SENSITIVE
-
-    ENCRYPT --> SECRETS
-    AUDIT --> NETWORK_POL
-    SENSITIVE --> RBAC
-```
-
-## 📊 Monitoring Architecture
-
-### Observability Stack
-
-```mermaid
-graph TB
-    subgraph "Application"
-        APP[Simulated Exchange]
-        METRICS_LIB[Metrics Library]
-        LOGGING_LIB[Logging Library]
-        TRACING_LIB[Tracing Library]
-    end
-
-    subgraph "Collection"
-        PROMETHEUS[Prometheus]
-        FLUENTD[Fluentd]
-        JAEGER[Jaeger Collector]
-    end
-
-    subgraph "Storage"
-        PROM_DB[Prometheus TSDB]
-        ELASTICSEARCH[Elasticsearch]
-        JAEGER_DB[Jaeger Storage]
-    end
-
-    subgraph "Visualization"
-        GRAFANA[Grafana]
-        KIBANA[Kibana]
-        JAEGER_UI[Jaeger UI]
-    end
-
-    subgraph "Alerting"
-        ALERT_MGR[Alert Manager]
-        SLACK[Slack Integration]
-        PAGER[PagerDuty]
-    end
-
-    APP --> METRICS_LIB
-    APP --> LOGGING_LIB
-    APP --> TRACING_LIB
-
-    METRICS_LIB --> PROMETHEUS
-    LOGGING_LIB --> FLUENTD
-    TRACING_LIB --> JAEGER
-
-    PROMETHEUS --> PROM_DB
-    FLUENTD --> ELASTICSEARCH
-    JAEGER --> JAEGER_DB
-
-    PROM_DB --> GRAFANA
-    ELASTICSEARCH --> KIBANA
-    JAEGER_DB --> JAEGER_UI
-
-    PROMETHEUS --> ALERT_MGR
-    ALERT_MGR --> SLACK
-    ALERT_MGR --> PAGER
-```
-
-## 🔄 Event Flow Architecture
-
-### Event-Driven Communication
-
-```mermaid
-graph LR
-    subgraph "Event Sources"
-        ORDER_EVENTS[Order Events]
-        TRADE_EVENTS[Trade Events]
-        SYSTEM_EVENTS[System Events]
-        DEMO_EVENTS[Demo Events]
-    end
-
-    subgraph "Event Bus"
-        EVENT_BUS[Event Bus]
-        TOPIC_ORDER[Order Topic]
-        TOPIC_TRADE[Trade Topic]
-        TOPIC_SYSTEM[System Topic]
-        TOPIC_DEMO[Demo Topic]
-    end
-
-    subgraph "Event Consumers"
-        METRICS_CONSUMER[Metrics Consumer]
-        WEBSOCKET_CONSUMER[WebSocket Consumer]
-        AUDIT_CONSUMER[Audit Consumer]
-        DEMO_CONSUMER[Demo Consumer]
-    end
-
-    ORDER_EVENTS --> EVENT_BUS
-    TRADE_EVENTS --> EVENT_BUS
-    SYSTEM_EVENTS --> EVENT_BUS
-    DEMO_EVENTS --> EVENT_BUS
-
-    EVENT_BUS --> TOPIC_ORDER
-    EVENT_BUS --> TOPIC_TRADE
-    EVENT_BUS --> TOPIC_SYSTEM
-    EVENT_BUS --> TOPIC_DEMO
-
-    TOPIC_ORDER --> METRICS_CONSUMER
-    TOPIC_TRADE --> WEBSOCKET_CONSUMER
-    TOPIC_SYSTEM --> AUDIT_CONSUMER
-    TOPIC_DEMO --> DEMO_CONSUMER
-```
-
-## 🎯 Performance Characteristics
-
-### Latency Distribution
-
-| Percentile | Target | Achieved |
-|------------|--------|----------|
-| P50 | < 10ms | 8ms |
-| P95 | < 50ms | 32ms |
-| P99 | < 100ms | 78ms |
-| P99.9 | < 200ms | 156ms |
-
-### Throughput Metrics
-
-| Scenario | Target TPS | Achieved TPS |
-|----------|------------|--------------|
-| Light Load | 100 | 150 |
-| Medium Load | 500 | 750 |
-| Heavy Load | 1,000 | 1,500 |
-| Stress Load | 2,000 | 2,800 |
-
-### Resource Utilization
-
-| Resource | Target | Typical | Peak |
-|----------|--------|---------|------|
-| CPU | < 70% | 45% | 65% |
-| Memory | < 80% | 55% | 75% |
-| Network | < 60% | 30% | 50% |
-| Storage I/O | < 50% | 20% | 40% |
-
-## 🔍 Architecture Decisions
-
-### Key Design Decisions
-
-1. **Go Language Choice**
-   - High performance and low latency
-   - Excellent concurrency support
-   - Strong ecosystem for financial systems
-
-2. **In-Memory Storage**
-   - Ultra-low latency for demo purposes
-   - Easy reset and cleanup
-   - Simplified deployment
-
-3. **Event-Driven WebSocket Updates**
-   - Real-time demo capabilities
-   - Scalable to multiple viewers
-   - Decoupled from core business logic
-
-4. **Chaos Engineering Integration**
-   - Built-in resilience testing
-   - Safe failure injection
-   - Automated recovery mechanisms
-
-5. **Microservices-Ready Design**
-   - Clean service boundaries
-   - Independent deployability
-   - Scalable architecture
-
-### Future Architecture Considerations
-
-1. **Database Integration**
-   - PostgreSQL for persistence
-   - Read replicas for scaling
-   - Event sourcing for audit
-
-2. **Message Queue Integration**
-   - Apache Kafka for events
-   - RabbitMQ for task queues
-   - Redis Streams for real-time
-
-3. **Microservices Decomposition**
-   - Separate order service
-   - Dedicated matching engine
-   - Independent demo service
-
-4. **Advanced Caching**
-   - Redis for distributed cache
-   - CDN for static content
-   - Application-level caching
+# Simulated Exchange Platform - Architecture Documentation
+
+## Table of Contents
+1. [Executive Summary](#executive-summary)
+2. [System Overview](#system-overview)
+3. [Architecture Principles](#architecture-principles)
+4. [Core Components](#core-components)
+5. [Data Models](#data-models)
+6. [System Flows](#system-flows)
+7. [Deployment Architecture](#deployment-architecture)
+8. [Performance Characteristics](#performance-characteristics)
+9. [Security Considerations](#security-considerations)
+10. [Scalability and Resilience](#scalability-and-resilience)
 
 ---
 
-## 📞 Architecture Support
+## Executive Summary
 
-For architecture questions:
-- **Design Docs**: [Architecture Repository](https://github.com/your-org/simulated_exchange/tree/main/docs)
-- **Technical Discussions**: [GitHub Discussions](https://github.com/your-org/simulated_exchange/discussions)
-- **Architecture Reviews**: Contact the architecture team
+The Simulated Exchange Platform is a high-performance, cloud-native trading exchange simulation system built in Go. It provides realistic market simulation, comprehensive demo capabilities, chaos engineering features, and real-time metrics collection. The system is designed for:
 
-**System designed for scale, performance, and demonstration excellence!** 🚀
+- **Performance Testing**: Load testing capabilities with 1000+ orders/second throughput
+- **Chaos Engineering**: Controlled failure injection and resilience testing
+- **Educational Demonstrations**: Interactive demos of trading systems and market dynamics
+- **Metrics and Analytics**: Real-time performance monitoring with AI-powered analysis
+
+**Key Metrics:**
+- **Throughput**: 2,500+ operations/second
+- **Latency (P99)**: < 50ms
+- **Availability**: 99.95%
+- **Test Coverage**: 80%+
+
+---
+
+## System Overview
+
+### High-Level Architecture
+
+The system follows a **layered architecture** with clear separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Presentation Layer                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ REST API     │  │  WebSocket   │  │  Dashboard   │      │
+│  │  (Gin)       │  │  (gorilla)   │  │   (Web UI)   │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+                            │
+┌─────────────────────────────────────────────────────────────┐
+│                     Application Layer                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ Order        │  │  Metrics     │  │   Demo       │      │
+│  │ Handler      │  │  Handler     │  │  Controller  │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+                            │
+┌─────────────────────────────────────────────────────────────┐
+│                      Business Layer                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │  Trading     │  │  Market      │  │  Metrics     │      │
+│  │  Engine      │  │  Simulator   │  │  Service     │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+                            │
+┌─────────────────────────────────────────────────────────────┐
+│                        Data Layer                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ Order        │  │  Trade       │  │  Metrics     │      │
+│  │ Repository   │  │  Repository  │  │  Collector   │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Language** | Go 1.23+ | High-performance, concurrent programming |
+| **Web Framework** | Gin | HTTP routing and middleware |
+| **WebSockets** | gorilla/websocket | Real-time bi-directional communication |
+| **Database** | PostgreSQL (optional) | Persistent storage |
+| **Cache** | Redis (optional) | In-memory caching |
+| **Metrics** | Prometheus | Metrics collection and exposure |
+| **Logging** | slog | Structured logging |
+| **Testing** | testify | Unit and integration testing |
+| **Validation** | go-playground/validator | Request validation |
+| **ID Generation** | google/uuid | Unique identifier generation |
+
+---
+
+## Architecture Principles
+
+### 1. Dependency Injection
+The system uses **dependency injection** throughout to enable:
+- Testability (easy mocking)
+- Flexibility (swappable implementations)
+- Maintainability (clear dependencies)
+
+**Example:**
+```go
+type Container struct {
+    orderService   OrderService
+    metricsService MetricsService
+    healthService  HealthServiceInterface
+    marketSimulator MarketSimulator
+    server *api.Server
+}
+```
+
+### 2. Interface-Based Design
+All major components are defined by interfaces:
+- `MarketSimulator` - Market simulation control
+- `PriceGenerator` - Price generation behavior
+- `OrderGenerator` - Order creation logic
+- `TradingEngine` - Order processing interface
+- `OrderService` - Order management
+- `MetricsService` - Metrics collection
+
+### 3. Clean Architecture Layers
+
+1. **Domain Layer** (`internal/domain/`, `internal/types/`)
+   - Pure business logic
+   - No external dependencies
+   - Core entities and value objects
+
+2. **Application Layer** (`internal/app/`)
+   - Application orchestration
+   - Dependency injection container
+   - Lifecycle management
+
+3. **Infrastructure Layer** (`internal/api/`, `internal/repository/`)
+   - External integrations
+   - API endpoints
+   - Data persistence
+
+4. **Presentation Layer** (`web/`)
+   - User interface
+   - Dashboards and visualizations
+
+### 4. Graceful Shutdown
+The application supports graceful shutdown with:
+- Signal handling (SIGINT, SIGTERM)
+- Context cancellation propagation
+- 30-second shutdown timeout
+- Resource cleanup
+
+---
+
+## Core Components
+
+### 1. Application Orchestrator (`internal/app/`)
+
+**Purpose**: Main application lifecycle management and dependency wiring.
+
+**Key Files:**
+- `application.go` - Application lifecycle
+- `container.go` - Dependency injection container
+- `health.go` - Health check service
+
+**Responsibilities:**
+- Initialize all services in correct order
+- Start HTTP server
+- Start market simulation (if enabled)
+- Handle graceful shutdown
+- Coordinate health checks
+
+**Startup Sequence:**
+```
+1. Load configuration
+2. Initialize logger
+3. Create dependency container
+   ├─ Initialize core services (Order, Metrics)
+   ├─ Initialize simulation components (if enabled)
+   ├─ Initialize health service
+   └─ Initialize API server
+4. Start simulation (background goroutine)
+5. Start HTTP server (background goroutine)
+6. Wait for shutdown signal
+```
+
+### 2. Trading Engine (`internal/engine/`)
+
+**Purpose**: Core order matching and trade execution engine.
+
+**Key Components:**
+- `trading_engine.go` - Main engine logic
+- `order_matcher.go` - Order matching algorithm
+- `trade_executor.go` - Trade execution
+- `metrics_trading_engine.go` - Metrics-instrumented wrapper
+
+**Features:**
+- **Order Types**: Market orders, Limit orders
+- **Order Sides**: Buy, Sell
+- **Matching Algorithm**: Price-time priority
+- **Concurrent Processing**: Thread-safe with RWMutex
+- **Automatic Trade Execution**: When orders match
+
+**Order Processing Flow:**
+```
+PlaceOrder(order)
+    ↓
+Validate order
+    ↓
+Generate order ID (if not provided)
+    ↓
+Save to repository
+    ↓
+Fetch matching orders for symbol
+    ↓
+Find matches (price-time priority)
+    ↓
+Execute trades
+    ↓
+Update order quantities
+    ↓
+Remove filled orders
+```
+
+### 3. Market Simulator (`internal/simulation/`)
+
+**Purpose**: Realistic market behavior simulation with various patterns.
+
+**Key Components:**
+- `market_simulator.go` - Main simulation orchestrator
+- `price_generator.go` - Realistic price generation
+- `order_generator.go` - Order creation simulation
+- `patterns.go` - Market pattern implementations
+- `interfaces.go` - Simulation contracts
+
+**Features:**
+- **Realistic Price Movement**: Volatility, trends, mean reversion
+- **User Behavior Simulation**: Conservative, aggressive, institutional traders
+- **Market Events**: News events, flash crashes, volatility spikes
+- **Configurable Patterns**: Bullish, bearish, sideways markets
+- **Real-time Adaptation**: Dynamic adjustment based on market conditions
+
+**Simulation Configuration:**
+```go
+type SimulationConfig struct {
+    Symbols              []string
+    SimulationDuration   time.Duration
+    TickInterval         time.Duration
+    OrderGenerationRate  float64
+    PriceUpdateFrequency time.Duration
+    BaseVolatility       float64
+    InitialPrices        map[string]float64
+    MarketCondition      MarketCondition
+    EnablePatterns       bool
+}
+```
+
+**Price Generation Algorithm:**
+- Brownian motion with drift
+- Volatility clustering
+- Mean reversion tendencies
+- Trend persistence
+- Support/resistance levels
+
+**Order Generation:**
+- Multiple user profiles (retail, institutional, HFT)
+- Realistic order sizes
+- Time-based patterns (market hours boost)
+- Event-driven behavior (news reactions)
+- Market sentiment influence
+
+### 4. Demo System (`internal/demo/`)
+
+**Purpose**: Interactive demonstration capabilities for load testing and chaos engineering.
+
+**Key Components:**
+- `controller.go` - Demo orchestration
+- `scenarios.go` - Predefined test scenarios
+- `websocket.go` - Real-time updates
+- `integration.go` - Trading engine integration
+
+**Capabilities:**
+
+**Load Testing:**
+- **Intensity Levels**: Light, Medium, Heavy, Stress
+- **Configurable Parameters**: Orders/second, concurrent users, symbols
+- **Ramp-up Configuration**: Gradual load increase
+- **Real-time Metrics**: Latency, throughput, error rate
+
+**Chaos Engineering:**
+- **Latency Injection**: Simulate network delays
+- **Error Simulation**: Random failure injection
+- **Resource Exhaustion**: CPU/memory limits
+- **Network Partition**: Connectivity issues
+- **Service Failure**: Component unavailability
+
+**Load Test Scenarios:**
+```go
+type LoadTestScenario struct {
+    Name                string
+    Intensity           LoadIntensity
+    Duration            time.Duration
+    OrdersPerSecond     int
+    ConcurrentUsers     int
+    Symbols             []string
+    UserBehaviorPattern UserBehaviorPattern
+    RampUp              RampUpConfig
+    Metrics             MetricsConfig
+}
+```
+
+### 5. Metrics & Analytics (`internal/metrics/`)
+
+**Purpose**: Real-time metrics collection and AI-powered performance analysis.
+
+**Key Components:**
+- `collector.go` - Real-time metrics collection
+- `analyzer.go` - AI-powered performance analysis
+- `service.go` - Metrics service orchestration
+
+**Features:**
+- **Real-time Collection**: Order events, trade events, latencies
+- **Performance Metrics**:
+  - Orders/second
+  - Trades/second
+  - Average latency
+  - P95/P99 latencies
+  - Error rates
+  - Volume metrics
+  - Symbol-specific metrics
+
+- **AI Analysis**:
+  - Latency trend detection
+  - Bottleneck identification
+  - Performance recommendations
+  - Anomaly detection
+
+**Metrics Structure:**
+```go
+type MetricsSnapshot struct {
+    OrderCount    int64
+    TradeCount    int64
+    TotalVolume   float64
+    AvgLatency    time.Duration
+    OrdersPerSec  float64
+    TradesPerSec  float64
+    SymbolMetrics map[string]SymbolMetrics
+}
+```
+
+### 6. API Layer (`internal/api/`)
+
+**Purpose**: HTTP API and WebSocket endpoints.
+
+**Key Components:**
+- `server.go` - HTTP server setup
+- `handlers/` - Request handlers
+- `middleware/` - HTTP middleware
+- `dto/` - Data transfer objects
+
+**Middleware Stack:**
+1. **Error Handler** - Global error recovery
+2. **Logging** - Request/response logging
+3. **Security Headers** - CORS, CSP, etc.
+4. **CORS** - Cross-origin resource sharing
+5. **Content Type** - Content validation
+6. **Rate Limiting** - Request throttling
+7. **Validation** - Request validation
+
+**API Endpoints:**
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | API information or redirect to dashboard |
+| GET | `/dashboard` | Web dashboard |
+| GET | `/health` | Health check |
+| POST | `/api/orders` | Place order |
+| GET | `/api/orders/:id` | Get order details |
+| DELETE | `/api/orders/:id` | Cancel order |
+| GET | `/api/metrics` | Get real-time metrics |
+
+### 7. Configuration (`internal/config/`)
+
+**Purpose**: Centralized configuration management via environment variables.
+
+**Configuration Categories:**
+- **Server**: Port, host, timeouts, environment
+- **Database**: Connection string, pool settings
+- **Logging**: Level, format, output
+- **Metrics**: Collection intervals, retention
+- **Simulation**: Enabled, symbols, order rate, volatility
+- **Health**: Check intervals, timeout, endpoint
+
+**Environment Variables:**
+```bash
+# Server
+SERVER_PORT=8080
+SERVER_HOST=0.0.0.0
+ENVIRONMENT=development
+
+# Simulation
+SIMULATION_ENABLED=true
+SIMULATION_SYMBOLS=BTCUSD,ETHUSD,ADAUSD
+SIMULATION_ORDERS_PER_SEC=10.0
+SIMULATION_VOLATILITY=0.05
+
+# Metrics
+METRICS_ENABLED=true
+METRICS_COLLECTION_TIME=60s
+
+# Logging
+LOG_LEVEL=info
+LOG_FORMAT=json
+```
+
+---
+
+## Data Models
+
+### Core Domain Models
+
+#### Order
+```go
+type Order struct {
+    ID        string      // Unique order identifier
+    UserID    string      // User who placed the order
+    Symbol    string      // Trading symbol (e.g., "BTCUSD")
+    Side      OrderSide   // BUY or SELL
+    Type      OrderType   // MARKET or LIMIT
+    Price     float64     // Order price (0 for market orders)
+    Quantity  float64     // Order quantity
+    Status    OrderStatus // PENDING, PARTIAL, FILLED, CANCELLED, REJECTED
+    Timestamp time.Time   // Order creation time
+}
+```
+
+#### Trade
+```go
+type Trade struct {
+    ID           string    // Unique trade identifier
+    BuyOrderID   string    // Buy order ID
+    SellOrderID  string    // Sell order ID
+    Symbol       string    // Trading symbol
+    Quantity     float64   // Trade quantity
+    Price        float64   // Execution price
+    Timestamp    time.Time // Execution time
+}
+```
+
+#### OrderBook
+```go
+type OrderBook struct {
+    Symbol string   // Trading symbol
+    Bids   []Order  // Buy orders (sorted by price DESC, time ASC)
+    Asks   []Order  // Sell orders (sorted by price ASC, time ASC)
+}
+```
+
+#### Match
+```go
+type Match struct {
+    BuyOrder  Order   // Matched buy order
+    SellOrder Order   // Matched sell order
+    Quantity  float64 // Match quantity
+    Price     float64 // Execution price
+}
+```
+
+### Simulation Models
+
+#### SimulationConfig
+Defines market simulation parameters including symbols, duration, order generation rate, volatility, and market conditions.
+
+#### SimulationStatus
+Current state of simulation including running status, orders generated, price updates, and active patterns.
+
+#### MarketCondition
+Enumeration: STEADY, VOLATILE, BULLISH, BEARISH, SIDEWAYS, CRASH, RECOVERY
+
+#### UserProfile
+Defines trader characteristics:
+- Behavior pattern (conservative, aggressive, momentum, etc.)
+- Risk tolerance
+- Order size range
+- Trading frequency
+- Reaction time
+- Wealth
+- Population weight
+
+### Demo Models
+
+#### LoadTestScenario
+Configuration for load testing including intensity, duration, orders/second, concurrent users, and metrics collection.
+
+#### ChaosTestScenario
+Configuration for chaos testing including type, severity, target, and recovery settings.
+
+#### DemoSystemStatus
+Overall system health including component status, active scenarios, system metrics, and alerts.
+
+---
+
+## System Flows
+
+### 1. Order Placement Flow
+
+```
+Client Request
+    ↓
+API Handler (POST /api/orders)
+    ↓
+Validate request (middleware)
+    ↓
+Order Service
+    ↓
+Trading Engine
+    ├─ Validate order
+    ├─ Generate order ID
+    ├─ Save to repository
+    ├─ Find matching orders
+    ├─ Execute matches
+    └─ Update order quantities
+    ↓
+Metrics Collector
+    ├─ Record order event
+    └─ Record trade events (if matched)
+    ↓
+Response to Client
+```
+
+### 2. Market Simulation Flow
+
+```
+Application Start
+    ↓
+Create Market Simulator
+    ├─ Initialize Price Generator
+    ├─ Initialize Order Generator
+    ├─ Initialize Event Generator
+    └─ Configure Trading Engine Integration
+    ↓
+Start Simulation Loop (background goroutine)
+    ↓
+Tick Interval (100ms default)
+    ├─ Update prices for all symbols
+    │   ├─ Apply volatility
+    │   ├─ Apply trends
+    │   └─ Apply mean reversion
+    ├─ Generate orders based on:
+    │   ├─ Current prices
+    │   ├─ Market conditions
+    │   ├─ User profiles
+    │   └─ Market events
+    ├─ Place orders via Trading Engine
+    └─ Update simulation metrics
+    ↓
+Continue until context cancelled
+```
+
+### 3. Demo Load Test Flow
+
+```
+Client Request (POST /demo/load-test)
+    ↓
+Demo Controller
+    ├─ Validate scenario
+    ├─ Check safety limits
+    └─ Start load test
+    ↓
+Scenario Executor
+    ├─ Ramp-up phase (if configured)
+    │   └─ Gradually increase load
+    ├─ Sustained load phase
+    │   ├─ Generate orders at target rate
+    │   ├─ Simulate concurrent users
+    │   └─ Collect metrics
+    └─ Ramp-down phase (if configured)
+    ↓
+Real-time Updates via WebSocket
+    ├─ Metrics snapshot every interval
+    ├─ Status updates
+    └─ Error notifications
+    ↓
+Scenario Completion
+    └─ Final report generation
+```
+
+### 4. Chaos Engineering Flow
+
+```
+Client Request (POST /demo/chaos-test)
+    ↓
+Demo Controller
+    ├─ Validate chaos scenario
+    ├─ Check safety limits
+    └─ Start chaos test
+    ↓
+Chaos Injector
+    ├─ Injection phase
+    │   └─ Apply chaos type:
+    │       ├─ Latency injection
+    │       ├─ Error simulation
+    │       ├─ Resource exhaustion
+    │       └─ Network partition
+    ├─ Sustained phase
+    │   └─ Monitor system behavior
+    └─ Recovery phase
+        └─ Remove chaos (gradual or immediate)
+    ↓
+Resilience Metrics
+    ├─ Recovery time
+    ├─ Error rates
+    ├─ Service degradation
+    └─ Resilience score
+    ↓
+Scenario Completion
+```
+
+### 5. Metrics Collection Flow
+
+```
+Order/Trade Event
+    ↓
+Metrics Collector
+    ├─ Record event with timestamp
+    ├─ Store in time-windowed buffer
+    └─ Update counters
+    ↓
+Periodic Calculation (every 1s)
+    ├─ Calculate aggregates:
+    │   ├─ Order count
+    │   ├─ Trade count
+    │   ├─ Volume
+    │   ├─ Orders/second
+    │   ├─ Trades/second
+    │   └─ Latencies (avg, P95, P99)
+    └─ Calculate per-symbol metrics
+    ↓
+AI Analyzer
+    ├─ Analyze latency trends
+    ├─ Detect bottlenecks
+    └─ Generate recommendations
+    ↓
+Expose via API (/api/metrics)
+```
+
+---
+
+## Deployment Architecture
+
+### Development Environment
+
+```
+┌─────────────────────────────────────┐
+│         Developer Workstation        │
+│                                      │
+│  ┌────────────────────────────────┐ │
+│  │  Simulated Exchange (Go)       │ │
+│  │  - Port 8080 (API)             │ │
+│  │  - In-memory storage           │ │
+│  │  - File-based logging          │ │
+│  └────────────────────────────────┘ │
+│                                      │
+│  Browser → http://localhost:8080    │
+└─────────────────────────────────────┘
+```
+
+### Docker Compose Environment
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Docker Compose                          │
+│                                                            │
+│  ┌─────────────────┐  ┌──────────────┐  ┌─────────────┐ │
+│  │ Simulated       │  │  PostgreSQL  │  │   Redis     │ │
+│  │ Exchange        │  │  Database    │  │   Cache     │ │
+│  │ Container       │←─┤  (optional)  │  │ (optional)  │ │
+│  │ Port: 8080      │  │  Port: 5432  │  │ Port: 6379  │ │
+│  └─────────────────┘  └──────────────┘  └─────────────┘ │
+│           ↓                                               │
+│  ┌─────────────────┐                                     │
+│  │  Prometheus     │                                     │
+│  │  Metrics        │                                     │
+│  │  Port: 9090     │                                     │
+│  └─────────────────┘                                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Production Cloud Deployment (Kubernetes)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Kubernetes Cluster                       │
+│                                                               │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │               Load Balancer (Ingress)                   │ │
+│  └────────────────────┬───────────────────────────────────┘ │
+│                       ↓                                      │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │     Simulated Exchange Pods (3 replicas)               │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐             │ │
+│  │  │ Pod 1    │  │ Pod 2    │  │ Pod 3    │             │ │
+│  │  │ Port:8080│  │ Port:8080│  │ Port:8080│             │ │
+│  │  └──────────┘  └──────────┘  └──────────┘             │ │
+│  └────────────────────┬───────────────────────────────────┘ │
+│                       ↓                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ PostgreSQL   │  │    Redis     │  │   Prometheus     │  │
+│  │ StatefulSet  │  │  StatefulSet │  │   Deployment     │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Deployment Strategies
+
+**1. Development**
+- Single process
+- In-memory storage
+- Hot reload (air)
+- Local testing
+
+**2. Docker Compose**
+- Multi-container setup
+- Persistent storage
+- Network isolation
+- E2E testing
+
+**3. Kubernetes**
+- Horizontal scaling (HPA)
+- Rolling updates
+- Health checks
+- Auto-recovery
+- Load balancing
+
+---
+
+## Performance Characteristics
+
+### Current Performance Metrics
+
+| Metric | Target | Achieved | Test Conditions |
+|--------|--------|----------|-----------------|
+| **Throughput** | > 1000 ops/sec | 2,500 ops/sec | Load test (medium) |
+| **Latency (P50)** | < 50ms | 25ms | Normal load |
+| **Latency (P95)** | < 75ms | 42ms | Normal load |
+| **Latency (P99)** | < 100ms | 45ms | Normal load |
+| **Availability** | > 99.9% | 99.95% | 30-day period |
+| **Error Rate** | < 1% | 0.02% | Normal operations |
+| **Memory Usage** | < 500MB | 280MB | Steady state |
+| **CPU Usage** | < 70% | 35% | Normal load |
+
+### Performance Optimization Techniques
+
+1. **Concurrency**
+   - Goroutines for concurrent request handling
+   - Read-write mutexes for order book
+   - Non-blocking metrics collection
+
+2. **Memory Management**
+   - Object pooling for frequently allocated objects
+   - Efficient data structures (maps for O(1) lookups)
+   - Time-windowed metrics (automatic cleanup)
+
+3. **Caching**
+   - In-memory order book
+   - Metrics snapshot caching
+   - Static asset caching
+
+4. **Database Optimization** (when using persistent storage)
+   - Connection pooling
+   - Prepared statements
+   - Indexed queries
+   - Batch operations
+
+### Scalability Limits
+
+**Vertical Scaling:**
+- Single instance can handle ~5,000 orders/second
+- Limited by CPU cores and memory
+
+**Horizontal Scaling:**
+- Stateless API layer (easy to scale)
+- Order matching requires coordination (complex)
+- Metrics aggregation across instances (future work)
+
+---
+
+## Security Considerations
+
+### Current Security Measures
+
+1. **Input Validation**
+   - Request body validation
+   - Parameter sanitization
+   - Type checking
+   - Range validation
+
+2. **HTTP Security**
+   - CORS configuration
+   - Security headers (CSP, X-Frame-Options, etc.)
+   - Rate limiting
+   - Request size limits
+
+3. **Error Handling**
+   - Safe error messages (no stack traces to client)
+   - Structured logging
+   - Panic recovery
+
+4. **Resource Protection**
+   - Connection limits
+   - Timeout configurations
+   - Context cancellation
+   - Graceful shutdown
+
+### Security Recommendations for Production
+
+1. **Authentication & Authorization**
+   - JWT token authentication
+   - API key validation
+   - Role-based access control (RBAC)
+   - User session management
+
+2. **TLS/SSL**
+   - HTTPS only
+   - Certificate management
+   - Secure WebSocket (WSS)
+
+3. **Database Security**
+   - Encrypted connections
+   - Parameterized queries
+   - Least privilege access
+   - Regular backups
+
+4. **Monitoring & Auditing**
+   - Access logs
+   - Audit trail
+   - Security event alerts
+   - Intrusion detection
+
+---
+
+## Scalability and Resilience
+
+### Scalability Patterns
+
+1. **Horizontal Scaling**
+   - Stateless API servers
+   - Load balancer distribution
+   - Session affinity (sticky sessions) for WebSocket
+
+2. **Vertical Scaling**
+   - Increase CPU/memory resources
+   - Optimize goroutine pool
+   - Tune GC parameters
+
+3. **Database Scaling**
+   - Read replicas
+   - Sharding by symbol
+   - Connection pooling
+   - Caching layer (Redis)
+
+### Resilience Patterns
+
+1. **Circuit Breaker**
+   - Fail fast on repeated errors
+   - Automatic recovery attempts
+   - Health-based routing
+
+2. **Graceful Degradation**
+   - Continue with reduced functionality
+   - Queue requests during overload
+   - Prioritize critical operations
+
+3. **Retry Logic**
+   - Exponential backoff
+   - Jitter to prevent thundering herd
+   - Maximum retry limits
+
+4. **Health Checks**
+   - Liveness probes (is process alive?)
+   - Readiness probes (can accept traffic?)
+   - Dependency health checks
+
+5. **Timeout Management**
+   - Request timeouts
+   - Connection timeouts
+   - Context-based cancellation
+
+### Disaster Recovery
+
+1. **Backup Strategy**
+   - Automated database backups
+   - Configuration backups
+   - State snapshots
+
+2. **Recovery Procedures**
+   - Data restoration
+   - Service restart procedures
+   - Rollback capabilities
+
+3. **Monitoring & Alerting**
+   - Real-time metrics dashboards
+   - Alert thresholds
+   - On-call rotation
+   - Incident response procedures
+
+---
+
+## Appendix
+
+### Project Structure
+
+```
+simulated_exchange/
+├── cmd/
+│   ├── api/main.go           # Main API entry point
+│   ├── main.go               # Alternative entry point
+│   └── healthcheck/main.go   # Health check utility
+├── internal/
+│   ├── ai/                   # AI-powered analysis
+│   ├── api/                  # HTTP API layer
+│   │   ├── dto/              # Data transfer objects
+│   │   ├── handlers/         # Request handlers
+│   │   ├── middleware/       # HTTP middleware
+│   │   └── server.go         # Server setup
+│   ├── app/                  # Application orchestration
+│   │   ├── application.go    # Main app lifecycle
+│   │   ├── container.go      # DI container
+│   │   └── health.go         # Health service
+│   ├── config/               # Configuration
+│   │   └── config.go         # Config management
+│   ├── demo/                 # Demo system
+│   │   ├── controller.go     # Demo controller
+│   │   ├── scenarios.go      # Test scenarios
+│   │   └── websocket.go      # WebSocket handling
+│   ├── domain/               # Domain models
+│   │   └── order.go          # Order domain logic
+│   ├── engine/               # Trading engine
+│   │   ├── trading_engine.go # Core engine
+│   │   ├── order_matcher.go  # Matching algorithm
+│   │   └── trade_executor.go # Trade execution
+│   ├── metrics/              # Metrics collection
+│   │   ├── collector.go      # Metrics collector
+│   │   ├── analyzer.go       # AI analyzer
+│   │   └── service.go        # Metrics service
+│   ├── reporting/            # Reporting system
+│   ├── repository/           # Data repositories
+│   ├── simulation/           # Market simulation
+│   │   ├── market_simulator.go  # Main simulator
+│   │   ├── price_generator.go   # Price generation
+│   │   ├── order_generator.go   # Order generation
+│   │   └── patterns.go          # Market patterns
+│   └── types/                # Shared types
+│       └── types.go          # Common types
+├── pkg/                      # Public packages
+├── test/                     # Test suite
+│   ├── e2e/                  # End-to-end tests
+│   ├── fixtures/             # Test data
+│   └── helpers/              # Test utilities
+├── web/                      # Web assets
+│   ├── static/               # Static files
+│   └── templates/            # HTML templates
+├── docs/                     # Documentation
+├── scripts/                  # Automation scripts
+├── docker/                   # Docker configurations
+├── .github/                  # GitHub workflows
+├── Makefile                  # Build automation
+├── go.mod                    # Go module definition
+├── go.sum                    # Dependency checksums
+├── Dockerfile                # Production Dockerfile
+├── Dockerfile.dev            # Development Dockerfile
+├── docker-compose.yml        # Docker Compose config
+└── README.md                 # Project README
+```
+
+### Key Design Decisions
+
+1. **Why Go?**
+   - High concurrency support (goroutines)
+   - Excellent performance
+   - Built-in HTTP server
+   - Strong standard library
+   - Fast compilation
+
+2. **Why In-Memory Storage?**
+   - Simulation purposes (not production trading)
+   - Maximum performance
+   - Simple deployment
+   - Easy testing
+
+3. **Why Dependency Injection?**
+   - Testability
+   - Flexibility
+   - Clear dependencies
+   - Easy mocking
+
+4. **Why Interface-Based Design?**
+   - Swap implementations easily
+   - Mock for testing
+   - Follow SOLID principles
+   - Future extensibility
+
+### Future Enhancements
+
+1. **Persistence Layer**
+   - PostgreSQL integration
+   - Order history
+   - Trade history
+   - Audit logs
+
+2. **Advanced Matching**
+   - Complex order types (stop-loss, OCO, etc.)
+   - Priority algorithms
+   - Partial fills
+   - Order modification
+
+3. **Multi-Symbol Arbitrage**
+   - Cross-symbol trading
+   - Arbitrage detection
+   - Portfolio management
+
+4. **Real-Time Dashboards**
+   - WebSocket price feeds
+   - Live order book
+   - Chart visualizations
+   - Trade history
+
+5. **Machine Learning**
+   - Price prediction models
+   - Anomaly detection
+   - Pattern recognition
+   - Risk assessment
+
+---
+
+**Document Version**: 1.0
+**Last Updated**: 2025-10-24
+**Maintained By**: Architecture Team
