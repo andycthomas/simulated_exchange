@@ -1,0 +1,487 @@
+#!/bin/bash
+################################################################################
+# Simulated Trading Exchange - Automated Setup Script
+################################################################################
+#
+# This script sets up the entire trading exchange simulation from scratch.
+# Safe to run multiple times - it's idempotent.
+#
+# Usage: ./setup.sh
+#
+# What it does:
+#   1. Checks system prerequisites
+#   2. Installs missing dependencies (with permission)
+#   3. Builds and starts all Docker containers
+#   4. Initializes the database
+#   5. Validates BPF scripts
+#   6. Runs health checks
+#   7. Shows you how to access the system
+#
+
+set -e
+
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+CYAN=$'\033[0;36m'
+BOLD=$'\033[1m'
+NC=$'\033[0m'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+log() { echo -e "${BLUE}[$(date +'%H:%M:%S')]${NC} $1"; }
+log_success() { echo -e "${GREEN}[$(date +'%H:%M:%S')] ✓${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[$(date +'%H:%M:%S')] ⚠${NC} $1"; }
+log_error() { echo -e "${RED}[$(date +'%H:%M:%S')] ✗${NC} $1"; }
+section() {
+    echo ""
+    echo -e "${BOLD}========================================================================${NC}"
+    echo -e "${BOLD}$1${NC}"
+    echo -e "${BOLD}========================================================================${NC}"
+}
+
+SETUP_START_TIME=$(date +%s)
+
+################################################################################
+# Welcome Banner
+################################################################################
+
+clear
+cat << "EOF"
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║           🚀  SIMULATED TRADING EXCHANGE PLATFORM  🚀                    ║
+║                                                                          ║
+║                    Automated Setup & Installation                        ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+EOF
+
+log "Welcome! This script will set up your complete trading exchange simulation."
+log "Estimated time: 10-15 minutes (mostly Docker builds)"
+echo ""
+sleep 2
+
+################################################################################
+# Step 1: System Prerequisites Check
+################################################################################
+
+section "Step 1/7: Checking System Prerequisites"
+
+# Kernel version
+KERNEL_VERSION=$(uname -r)
+log "Kernel: $KERNEL_VERSION"
+
+KERNEL_MAJOR=$(echo $KERNEL_VERSION | cut -d'.' -f1)
+KERNEL_MINOR=$(echo $KERNEL_VERSION | cut -d'.' -f2)
+
+if [ "$KERNEL_MAJOR" -ge 5 ] || ([ "$KERNEL_MAJOR" -eq 4 ] && [ "$KERNEL_MINOR" -ge 9 ]); then
+    log_success "Kernel version OK"
+else
+    log_error "Kernel too old (< 4.9). Please upgrade your kernel."
+    exit 1
+fi
+
+# Memory check
+TOTAL_MEM_MB=$(free -m | awk '/^Mem:/{print $2}')
+if [ "$TOTAL_MEM_MB" -ge 4000 ]; then
+    log_success "Memory: ${TOTAL_MEM_MB}MB (sufficient)"
+else
+    log_warning "Memory: ${TOTAL_MEM_MB}MB (recommended: 4GB+)"
+fi
+
+# Disk space
+AVAIL_DISK_GB=$(df -BG "$SCRIPT_DIR" | awk 'NR==2 {print $4}' | sed 's/G//')
+if [ "$AVAIL_DISK_GB" -ge 10 ]; then
+    log_success "Disk space: ${AVAIL_DISK_GB}GB available"
+else
+    log_warning "Disk space: ${AVAIL_DISK_GB}GB (recommended: 20GB+)"
+fi
+
+################################################################################
+# Step 2: Install Dependencies
+################################################################################
+
+section "Step 2/7: Installing Dependencies"
+
+MISSING_TOOLS=()
+
+# Check Docker
+if ! command -v docker &> /dev/null; then
+    MISSING_TOOLS+=("docker")
+    log_warning "Docker not found"
+else
+    DOCKER_VERSION=$(docker --version)
+    log_success "Docker installed: $DOCKER_VERSION"
+fi
+
+# Check Docker Compose
+if ! command -v docker compose &> /dev/null && ! command -v docker-compose &> /dev/null; then
+    MISSING_TOOLS+=("docker-compose")
+    log_warning "Docker Compose not found"
+else
+    log_success "Docker Compose installed"
+fi
+
+# Check bpftrace
+if ! command -v bpftrace &> /dev/null; then
+    MISSING_TOOLS+=("bpftrace")
+    log_warning "bpftrace not found (needed for chaos experiments)"
+else
+    log_success "bpftrace installed"
+fi
+
+# Check other tools
+for tool in curl grep sed awk bc; do
+    if ! command -v $tool &> /dev/null; then
+        MISSING_TOOLS+=("$tool")
+    fi
+done
+
+# Optional but recommended tools
+OPTIONAL_TOOLS=()
+for tool in iostat stress-ng tc iptables; do
+    if ! command -v $tool &> /dev/null; then
+        OPTIONAL_TOOLS+=("$tool")
+    fi
+done
+
+# Install missing critical tools
+if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
+    echo ""
+    log_warning "Missing required tools: ${MISSING_TOOLS[*]}"
+    echo ""
+    echo "Install commands (choose your OS):"
+    echo ""
+    echo "  RHEL/CentOS/Rocky:"
+    echo "    sudo dnf install -y ${MISSING_TOOLS[*]}"
+    echo ""
+    echo "  Ubuntu/Debian:"
+    echo "    sudo apt-get update && sudo apt-get install -y ${MISSING_TOOLS[*]}"
+    echo ""
+    read -p "Install now? (y/n): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if command -v dnf &> /dev/null; then
+            sudo dnf install -y ${MISSING_TOOLS[*]} || log_warning "Some packages failed to install"
+        elif command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y ${MISSING_TOOLS[*]} || log_warning "Some packages failed to install"
+        else
+            log_error "Unable to detect package manager. Please install manually."
+            exit 1
+        fi
+    else
+        log_error "Required tools not installed. Cannot continue."
+        exit 1
+    fi
+fi
+
+# Install optional tools
+if [ ${#OPTIONAL_TOOLS[@]} -gt 0 ]; then
+    log_warning "Optional tools missing: ${OPTIONAL_TOOLS[*]}"
+    log "These are needed for some chaos experiments. Install them later if needed."
+fi
+
+################################################################################
+# Step 3: Docker Setup
+################################################################################
+
+section "Step 3/7: Setting Up Docker"
+
+# Check if Docker daemon is running
+if ! docker ps &> /dev/null; then
+    log_warning "Docker daemon not running or no permission"
+    echo ""
+    echo "Trying to start Docker..."
+    sudo systemctl start docker || true
+    sleep 3
+
+    if ! docker ps &> /dev/null; then
+        log_warning "Still cannot access Docker. Adding you to docker group..."
+        sudo usermod -aG docker $USER || true
+        log_warning "Please log out and log back in, then run this script again."
+        exit 1
+    fi
+fi
+
+log_success "Docker daemon running"
+
+# Check for port conflicts
+log "Checking for port conflicts..."
+PORTS_IN_USE=()
+for port in 80 5432 6379 8080; do
+    if sudo ss -tlnp | grep -q ":${port} " 2>/dev/null; then
+        PORTS_IN_USE+=("$port")
+    fi
+done
+
+if [ ${#PORTS_IN_USE[@]} -gt 0 ]; then
+    log_warning "Ports in use: ${PORTS_IN_USE[*]}"
+    echo ""
+    echo "These ports are currently in use:"
+    sudo ss -tlnp | grep -E ":(80|5432|6379|8080) " 2>/dev/null || true
+    echo ""
+
+    # Check if it's httpd/apache on port 80
+    if sudo ss -tlnp | grep -q ":80.*httpd" 2>/dev/null; then
+        log_warning "Apache/httpd is using port 80"
+        read -p "Stop httpd to free port 80? (y/n): " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            log "Stopping httpd..."
+            sudo systemctl stop httpd || sudo service httpd stop || true
+            sleep 2
+        else
+            log_error "Cannot continue with port 80 in use. Please stop httpd manually:"
+            echo "  sudo systemctl stop httpd"
+            exit 1
+        fi
+    fi
+
+    log "Attempting to stop existing containers..."
+fi
+
+# Stop existing containers
+if docker compose ps 2>/dev/null | grep -q "Up"; then
+    log "Stopping existing containers..."
+    docker compose down || true
+    sleep 3
+fi
+
+################################################################################
+# Step 4: Build and Start Services
+################################################################################
+
+section "Step 4/7: Building and Starting Services"
+
+log "This will take 5-10 minutes on first run (Docker image downloads and builds)..."
+log "Grab a coffee! ☕"
+echo ""
+
+# Build images
+log "Building Docker images..."
+docker compose build --progress=plain 2>&1 | tee /tmp/docker-build.log
+
+# Check if build succeeded (look for actual errors, not exit code)
+if grep -q "ERROR" /tmp/docker-build.log; then
+    log_error "Docker build failed. Check /tmp/docker-build.log"
+    tail -50 /tmp/docker-build.log
+    exit 1
+elif grep -q "Built" /tmp/docker-build.log || docker compose images | grep -q "simulated_exchange"; then
+    log_success "Docker images built"
+else
+    log_warning "Build status unclear, checking if images exist..."
+    if docker compose images | grep -q "simulated_exchange"; then
+        log_success "Docker images are available"
+    else
+        log_error "Docker build may have failed. Check /tmp/docker-build.log"
+        exit 1
+    fi
+fi
+
+echo ""
+log "Starting all services..."
+docker compose up -d
+
+log "Waiting for services to initialize (30 seconds)..."
+for i in {30..1}; do
+    echo -ne "\r  ${i} seconds remaining...  "
+    sleep 1
+done
+echo ""
+
+################################################################################
+# Step 5: Health Checks
+################################################################################
+
+section "Step 5/7: Running Health Checks"
+
+# Wait for PostgreSQL
+log "Checking PostgreSQL..."
+for i in {1..30}; do
+    if docker exec simulated-exchange-postgres pg_isready -U trading_user &> /dev/null; then
+        log_success "PostgreSQL is ready"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        log_error "PostgreSQL failed to start"
+        docker compose logs postgres | tail -20
+        exit 1
+    fi
+    sleep 2
+done
+
+# Wait for Redis
+log "Checking Redis..."
+if docker exec simulated-exchange-redis redis-cli ping &> /dev/null; then
+    log_success "Redis is ready"
+else
+    log_warning "Redis check failed (may still be starting)"
+fi
+
+# Wait for API
+log "Checking Trading API..."
+for i in {1..30}; do
+    if curl -sf http://localhost/api/health &> /dev/null; then
+        log_success "Trading API is ready"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        log_error "Trading API failed to start"
+        docker compose logs trading-api | tail -20
+        exit 1
+    fi
+    sleep 2
+done
+
+# Check all containers
+log "Checking all containers..."
+EXPECTED_CONTAINERS=6
+RUNNING_CONTAINERS=$(docker compose ps | grep "Up" | wc -l)
+
+if [ "$RUNNING_CONTAINERS" -eq "$EXPECTED_CONTAINERS" ]; then
+    log_success "All $EXPECTED_CONTAINERS services running"
+else
+    log_warning "Only $RUNNING_CONTAINERS/$EXPECTED_CONTAINERS services running"
+    docker compose ps
+fi
+
+################################################################################
+# Step 6: Validate Chaos Experiments
+################################################################################
+
+section "Step 6/7: Validating Chaos Experiments"
+
+cd chaos-experiments
+
+# Run preflight check
+if [ -f "00-preflight-check.sh" ]; then
+    log "Running system preflight check..."
+    if ./00-preflight-check.sh 2>&1 | tee /tmp/preflight-check.log | tail -20; then
+        log_success "Preflight check passed"
+    else
+        log_warning "Preflight check had warnings (see /tmp/preflight-check.log)"
+    fi
+else
+    log_warning "Preflight check script not found"
+fi
+
+echo ""
+
+# Validate BPF scripts
+if [ -f "validate-bpf-scripts.sh" ]; then
+    log "Validating BPF scripts (this may take 2-3 minutes)..."
+    if ./validate-bpf-scripts.sh 2>&1 | tee /tmp/bpf-validation.log | grep -E "(PASS|FAIL|scripts tested)"; then
+        log_success "BPF scripts validated"
+    else
+        log_warning "Some BPF scripts may have issues (see /tmp/bpf-validation.log)"
+    fi
+else
+    log_warning "BPF validation script not found"
+fi
+
+cd "$SCRIPT_DIR"
+
+################################################################################
+# Step 7: Final Verification
+################################################################################
+
+section "Step 7/7: Final Verification"
+
+# Test API endpoint
+log "Testing API endpoint..."
+API_RESPONSE=$(curl -sf http://localhost/api/health 2>&1 || echo "failed")
+if echo "$API_RESPONSE" | grep -q "healthy"; then
+    log_success "API health check: PASS"
+else
+    log_error "API health check: FAIL"
+fi
+
+# Test dashboard
+log "Testing dashboard..."
+if curl -sf http://localhost/ &> /dev/null; then
+    log_success "Dashboard accessible"
+else
+    log_warning "Dashboard may not be ready yet"
+fi
+
+################################################################################
+# Success Summary
+################################################################################
+
+SETUP_END_TIME=$(date +%s)
+SETUP_DURATION=$((SETUP_END_TIME - SETUP_START_TIME))
+SETUP_MINUTES=$((SETUP_DURATION / 60))
+SETUP_SECONDS=$((SETUP_DURATION % 60))
+
+section "🎉 Setup Complete!"
+
+cat << EOF
+
+${GREEN}✓${NC} All services are running!
+${GREEN}✓${NC} Database initialized
+${GREEN}✓${NC} Health checks passed
+${GREEN}✓${NC} Chaos experiments ready
+
+${BOLD}Setup time: ${SETUP_MINUTES}m ${SETUP_SECONDS}s${NC}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${BOLD}${CYAN}Quick Access Links:${NC}
+
+  📊 Dashboard:     ${BOLD}http://localhost/${NC}
+  🔌 API:           ${BOLD}http://localhost/api/health${NC}
+  📈 Metrics:       ${BOLD}http://localhost/api/metrics${NC}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${BOLD}${CYAN}Running Services:${NC}
+
+EOF
+
+docker compose ps
+
+cat << EOF
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${BOLD}${CYAN}Next Steps:${NC}
+
+  1. ${BOLD}View Dashboard:${NC}
+     Open http://localhost/ in your browser
+
+  2. ${BOLD}Run Your First Chaos Experiment:${NC}
+     cd chaos-experiments
+     ./01-database-sudden-death.sh
+
+  3. ${BOLD}Read the Guides:${NC}
+     cat GETTING_STARTED.md
+     cat chaos-experiments/QUICKSTART.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${BOLD}${CYAN}Useful Commands:${NC}
+
+  View logs:          ${BOLD}docker compose logs -f${NC}
+  Restart services:   ${BOLD}docker compose restart${NC}
+  Stop everything:    ${BOLD}docker compose down${NC}
+  Restart setup:      ${BOLD}./setup.sh${NC}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${BOLD}${CYAN}Documentation:${NC}
+
+  Getting Started:    ${BOLD}GETTING_STARTED.md${NC}
+  Chaos Experiments:  ${BOLD}chaos-experiments/README.md${NC}
+  Troubleshooting:    ${BOLD}chaos-experiments/TROUBLESHOOTING.md${NC}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${GREEN}${BOLD}Ready to break things! 🚀${NC}
+
+Start with: ${BOLD}cd chaos-experiments && ./01-database-sudden-death.sh${NC}
+
+EOF

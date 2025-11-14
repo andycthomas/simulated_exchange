@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"simulated_exchange/internal/api/dto"
 	"simulated_exchange/internal/api/handlers"
+	"simulated_exchange/internal/demo"
 )
 
 // MockOrderService for integration testing
@@ -59,13 +61,68 @@ func (m *MockMetricsService) IsHealthy() bool {
 	return args.Bool(0)
 }
 
+// MockDemoController for integration testing
+type MockDemoController struct {
+	mock.Mock
+}
+
+func (m *MockDemoController) StartLoadTest(ctx context.Context, scenario demo.LoadTestScenario) error {
+	args := m.Called(ctx, scenario)
+	return args.Error(0)
+}
+
+func (m *MockDemoController) StopLoadTest(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockDemoController) GetLoadTestStatus(ctx context.Context) (*demo.LoadTestStatus, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*demo.LoadTestStatus), args.Error(1)
+}
+
+func (m *MockDemoController) TriggerChaosTest(ctx context.Context, scenario demo.ChaosTestScenario) error {
+	args := m.Called(ctx, scenario)
+	return args.Error(0)
+}
+
+func (m *MockDemoController) StopChaosTest(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockDemoController) GetChaosTestStatus(ctx context.Context) (*demo.ChaosTestStatus, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*demo.ChaosTestStatus), args.Error(1)
+}
+
+func (m *MockDemoController) ResetSystem(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockDemoController) GetSystemStatus(ctx context.Context) (*demo.DemoSystemStatus, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*demo.DemoSystemStatus), args.Error(1)
+}
+
 func TestAPI_IntegrationTests(t *testing.T) {
 	// Setup mock services
 	mockOrderService := new(MockOrderService)
 	mockMetricsService := new(MockMetricsService)
+	mockDemoController := new(MockDemoController)
 
 	// Create dependency container
-	deps := NewDependencyContainer(mockOrderService, mockMetricsService)
+	deps := NewDependencyContainer(mockOrderService, mockMetricsService, mockDemoController)
 
 	// Create server with test configuration
 	config := &Config{
@@ -303,9 +360,10 @@ func TestAPI_ErrorHandling_Integration(t *testing.T) {
 	// Setup mock services
 	mockOrderService := new(MockOrderService)
 	mockMetricsService := new(MockMetricsService)
+	mockDemoController := new(MockDemoController)
 
 	// Create dependency container
-	deps := NewDependencyContainer(mockOrderService, mockMetricsService)
+	deps := NewDependencyContainer(mockOrderService, mockMetricsService, mockDemoController)
 
 	// Create server
 	config := DefaultConfig()
@@ -387,9 +445,10 @@ func TestAPI_CORS_Integration(t *testing.T) {
 	// Setup mock services
 	mockOrderService := new(MockOrderService)
 	mockMetricsService := new(MockMetricsService)
+	mockDemoController := new(MockDemoController)
 
 	// Create dependency container
-	deps := NewDependencyContainer(mockOrderService, mockMetricsService)
+	deps := NewDependencyContainer(mockOrderService, mockMetricsService, mockDemoController)
 
 	// Create server
 	config := DefaultConfig()
@@ -435,9 +494,10 @@ func TestAPI_SecurityHeaders_Integration(t *testing.T) {
 	// Setup mock services
 	mockOrderService := new(MockOrderService)
 	mockMetricsService := new(MockMetricsService)
+	mockDemoController := new(MockDemoController)
 
 	// Create dependency container
-	deps := NewDependencyContainer(mockOrderService, mockMetricsService)
+	deps := NewDependencyContainer(mockOrderService, mockMetricsService, mockDemoController)
 
 	// Create server
 	config := DefaultConfig()

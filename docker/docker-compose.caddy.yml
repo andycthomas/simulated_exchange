@@ -1,0 +1,67 @@
+# ============================================================================
+# Caddy Service Configuration for SRE Lab
+# Add this to your main docker-compose.yml or use as override
+# ============================================================================
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: simulated-exchange-caddy
+    restart: unless-stopped
+
+    ports:
+      - "80:80"       # HTTP - redirects to HTTPS
+      - "443:443"     # HTTPS - standard secure port with Let's Encrypt
+      - "2019:2019"   # Caddy Admin API - localhost only
+      - "8888:8888"   # Local dev interface - localhost only
+
+    volumes:
+      # Caddyfile configuration
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+
+      # Persistent data for certificates
+      - caddy_data:/data
+      - caddy_config:/config
+
+      # Logs
+      - ./logs/caddy:/var/log/caddy
+
+      # Optional: Documentation files
+      - ./docs:/usr/share/caddy/docs:ro
+
+    environment:
+      # Domain configuration
+      - DOMAIN=andythomas-sre.com
+      - ACME_AGREE=true
+
+    networks:
+      - trading_network
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    depends_on:
+      - nginx
+      - trading-api
+      - market-simulator
+      - order-flow-simulator
+
+    labels:
+      - "com.simulated-exchange.service=reverse-proxy"
+      - "com.simulated-exchange.description=Caddy reverse proxy with automatic HTTPS"
+
+volumes:
+  caddy_data:
+    name: simulated_exchange_caddy_data
+  caddy_config:
+    name: simulated_exchange_caddy_config
+
+networks:
+  trading_network:
+    name: simulated_exchange_trading_network
+    external: true

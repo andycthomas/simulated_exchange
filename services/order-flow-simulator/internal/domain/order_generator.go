@@ -130,9 +130,9 @@ func (og *OrderGenerator) generateOrderID() string {
 func (og *OrderGenerator) generateUserID() string {
 	// Use ACTUAL database user UUIDs from init-db.sql
 	userUUIDs := []string{
-		"af2d2361-7772-447b-b2ec-bbf2f6c77be4", // admin@trading.local
-		"6169d80e-a6af-45ae-a5cf-2f4c39d0e84e", // trader1@trading.local
-		"a8705dd2-44f6-4b77-85c3-28c1816d42e5", // trader2@trading.local
+		"b4450f6c-f3f3-491d-b126-2a0d14addf5a", // admin@trading.local
+		"ce77abc4-2496-40b2-a7ad-72c57368879a", // trader1@trading.local
+		"a1a6ac0e-b1bc-48e2-8f68-a77bdb236680", // trader2@trading.local
 	}
 	return userUUIDs[og.random.Intn(len(userUUIDs))]
 }

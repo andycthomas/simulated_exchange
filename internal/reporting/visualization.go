@@ -204,17 +204,22 @@ func (vg *VisualizationGenerator) createTrendGraphs(report *ExecutiveReport) []G
 
 	// Performance Trend Graph
 	performanceTrend := GraphData{
-		GraphID:     vg.getNextGraphID(),
-		GraphType:   "line",
-		Title:       "Performance Trends",
-		Description: "Historical performance trends across key metrics",
-		XAxis:       "Time Period",
-		YAxis:       "Performance Score",
-		DataSeries: []GraphSeries{
+		ID:    vg.getNextGraphID(),
+		Type:  "line",
+		Title: "Performance Trends",
+		XAxis: AxisData{
+			Label: "Time Period",
+			Type:  "category",
+		},
+		YAxis: AxisData{
+			Label: "Performance Score",
+			Type:  "value",
+		},
+		Series: []DataSeries{
 			{
-				Name:   "Overall Performance",
-				Points: vg.createPerformanceTrendData(report),
-				Color:  "#3b82f6",
+				Name:  "Overall Performance",
+				Data:  vg.createPerformanceTrendData(report),
+				Color: "#3b82f6",
 			},
 		},
 		Options: map[string]interface{}{
@@ -226,10 +231,6 @@ func (vg *VisualizationGenerator) createTrendGraphs(report *ExecutiveReport) []G
 	}
 	graphs = append(graphs, performanceTrend)
 
-	// Cost Savings Graph
-	costSavingsGraph := vg.createCostSavingsGraph(report)
-	graphs = append(graphs, costSavingsGraph)
-
 	return graphs
 }
 
@@ -238,32 +239,19 @@ func (vg *VisualizationGenerator) createDataTables(report *ExecutiveReport) []Ta
 
 	// Executive Summary Table
 	summaryTable := TableData{
-		TableID:     vg.getNextTableID(),
-		Title:       "Executive Summary Metrics",
-		Description: "Key metrics and findings summary",
-		Headers:     []string{"Metric", "Current", "Target", "Status", "Trend"},
-		Rows:        vg.createSummaryTableRows(report),
-		Styling: TableStyling{
-			HeaderColor:    "#f3f4f6",
-			AlternateRows:  true,
-			BorderStyle:    "solid",
-			ResponsiveMode: true,
-		},
-		Options: map[string]interface{}{
-			"sortable":   true,
-			"filterable": false,
-			"exportable": true,
+		ID:         vg.getNextTableID(),
+		Title:      "Executive Summary Metrics",
+		Headers:    []string{"Metric", "Current", "Target", "Status", "Trend"},
+		Rows:       vg.createSummaryTableRows(report),
+		Sortable:   true,
+		Filterable: false,
+		Formatting: map[string]string{
+			"headerColor":  "#f3f4f6",
+			"borderStyle":  "solid",
+			"alternateRows": "true",
 		},
 	}
 	tables = append(tables, summaryTable)
-
-	// Risk Assessment Table
-	riskTable := vg.createRiskAssessmentTable(report)
-	tables = append(tables, riskTable)
-
-	// Cost Optimization Table
-	costTable := vg.createCostOptimizationTable(report)
-	tables = append(tables, costTable)
 
 	return tables
 }
@@ -273,48 +261,51 @@ func (vg *VisualizationGenerator) createDashboards(report *ExecutiveReport) []Da
 
 	// Executive Dashboard
 	execDashboard := DashboardData{
-		DashboardID: "executive_dashboard",
-		Title:       "Executive Performance Dashboard",
-		Description: "High-level view of business performance",
+		ID:     "executive_dashboard",
+		Title:  "Executive Performance Dashboard",
+		Layout: "grid",
 		Widgets: []DashboardWidget{
 			{
-				WidgetID:   "overall_score",
-				Type:       "gauge",
-				Title:      "Overall Score",
-				Value:      report.ExecutiveSummary.OverallScore.Score,
-				Target:     100,
-				Unit:       "points",
-				Position:   WidgetPosition{Row: 1, Column: 1, Width: 2, Height: 2},
-				Styling:    vg.getGaugeWidgetStyling(),
+				ID:    "overall_score",
+				Type:  "gauge",
+				Title: "Overall Score",
+				Data: map[string]interface{}{
+					"value":  report.ExecutiveSummary.OverallScore.Score,
+					"target": 100,
+					"unit":   "points",
+				},
+				Position: WidgetPosition{X: 0, Y: 0},
+				Size:     WidgetSize{Width: 2, Height: 2},
+				Options:  vg.getGaugeWidgetStyling(),
 			},
 			{
-				WidgetID:   "kpi_summary",
-				Type:       "metrics",
-				Title:      "Key Metrics",
-				Data:       vg.createKPIWidgetData(report),
-				Position:   WidgetPosition{Row: 1, Column: 3, Width: 4, Height: 2},
-				Styling:    vg.getMetricsWidgetStyling(),
+				ID:       "kpi_summary",
+				Type:     "metrics",
+				Title:    "Key Metrics",
+				Data:     vg.createKPIWidgetData(report),
+				Position: WidgetPosition{X: 2, Y: 0},
+				Size:     WidgetSize{Width: 4, Height: 2},
+				Options:  vg.getMetricsWidgetStyling(),
 			},
 			{
-				WidgetID:   "trend_chart",
-				Type:       "chart",
-				Title:      "Performance Trend",
-				ChartData:  vg.createTrendWidgetData(report),
-				Position:   WidgetPosition{Row: 2, Column: 1, Width: 6, Height: 3},
-				Styling:    vg.getChartWidgetStyling(),
+				ID:       "trend_chart",
+				Type:     "chart",
+				Title:    "Performance Trend",
+				Data:     vg.createTrendWidgetData(report),
+				Position: WidgetPosition{X: 0, Y: 2},
+				Size:     WidgetSize{Width: 6, Height: 3},
+				Options:  vg.getChartWidgetStyling(),
 			},
-		},
-		Layout: DashboardLayout{
-			Columns:    6,
-			RowHeight:  80,
-			Responsive: true,
-			Theme:      "executive",
 		},
 		Options: map[string]interface{}{
-			"autoRefresh":  false,
-			"exportable":   true,
-			"interactive":  true,
-			"fullscreen":   true,
+			"autoRefresh": false,
+			"exportable":  true,
+			"interactive": true,
+			"fullscreen":  true,
+			"columns":     6,
+			"rowHeight":   80,
+			"responsive":  true,
+			"theme":       "executive",
 		},
 	}
 	dashboards = append(dashboards, execDashboard)
@@ -327,26 +318,26 @@ func (vg *VisualizationGenerator) createInteractiveElements(report *ExecutiveRep
 
 	// Risk Heat Map
 	riskHeatMap := InteractiveElement{
-		ElementID:   "risk_heatmap",
-		Type:        "heatmap",
-		Title:       "Interactive Risk Heat Map",
-		Description: "Click on risk areas to view details",
-		Data:        vg.createRiskHeatMapData(report),
-		Interactions: []Interaction{
+		ID:    "risk_heatmap",
+		Type:  "heatmap",
+		Title: "Interactive Risk Heat Map",
+		Data:  vg.createRiskHeatMapData(report),
+		Actions: []InteractiveAction{
 			{
+				Name:        "showTooltip",
 				Type:        "click",
-				Target:      "cell",
-				Action:      "showTooltip",
-				Parameters:  map[string]interface{}{"position": "mouse"},
+				Description: "Show tooltip on cell click",
+				Parameters:  map[string]interface{}{"position": "mouse", "target": "cell"},
 			},
 			{
+				Name:        "highlight",
 				Type:        "hover",
-				Target:      "cell",
-				Action:      "highlight",
-				Parameters:  map[string]interface{}{"intensity": 0.3},
+				Description: "Highlight cell on hover",
+				Parameters:  map[string]interface{}{"intensity": 0.3, "target": "cell"},
 			},
 		},
-		Styling: map[string]interface{}{
+		Events: []string{"click", "hover"},
+		Options: map[string]interface{}{
 			"colorScheme": "risk",
 			"animation":   "fade",
 			"responsive":  true,
@@ -373,7 +364,7 @@ func (vg *VisualizationGenerator) createPerformanceGradeChart(report *ExecutiveR
 			{
 				Name: "Performance Score",
 				Data: []DataPoint{
-					{Value: report.ExecutiveSummary.OverallScore.Score, Label: string(report.ExecutiveSummary.OverallScore.Grade)},
+					{Y: report.ExecutiveSummary.OverallScore.Score, Label: string(report.ExecutiveSummary.OverallScore.Grade)},
 				},
 				Color: vg.getGradeColor(report.ExecutiveSummary.OverallScore.Grade),
 			},
@@ -454,7 +445,8 @@ func (vg *VisualizationGenerator) createROIProjectionData(roi ROIAnalysis) []Dat
 		if i < 5 { // Limit to 5 years
 			cumulativeROI += (benefit / roi.ROICalculation.InitialInvestment) * 100
 			data = append(data, DataPoint{
-				Value: cumulativeROI,
+				X:     float64(i),
+				Y:     cumulativeROI,
 				Label: fmt.Sprintf("Year %d", i+1),
 			})
 		}
@@ -471,7 +463,7 @@ func (vg *VisualizationGenerator) createRiskMatrixData(matrix RiskMatrix) []Data
 			data = append(data, DataPoint{
 				X:     float64(j),
 				Y:     float64(i),
-				Value: float64(cell.RiskCount),
+				Size:  float64(cell.RiskCount),
 				Label: cell.RiskLevel,
 				Color: vg.getRiskLevelColor(cell.RiskLevel),
 			})
@@ -498,11 +490,11 @@ func (vg *VisualizationGenerator) createPerformanceTrendData(report *ExecutiveRe
 
 func (vg *VisualizationGenerator) createInvestmentData(roi ROIAnalysis) []DataPoint {
 	return []DataPoint{
-		{Value: 40, Label: "Technology", Color: "#3b82f6"},
-		{Value: 25, Label: "Operations", Color: "#22c55e"},
-		{Value: 20, Label: "Marketing", Color: "#f59e0b"},
-		{Value: 10, Label: "Infrastructure", Color: "#8b5cf6"},
-		{Value: 5, Label: "Other", Color: "#6b7280"},
+		{Y: 40, Label: "Technology", Color: "#3b82f6"},
+		{Y: 25, Label: "Operations", Color: "#22c55e"},
+		{Y: 20, Label: "Marketing", Color: "#f59e0b"},
+		{Y: 10, Label: "Infrastructure", Color: "#8b5cf6"},
+		{Y: 5, Label: "Other", Color: "#6b7280"},
 	}
 }
 
@@ -521,7 +513,7 @@ func (vg *VisualizationGenerator) createTopRisksData(risks []RiskFactor) []DataP
 
 	for i := 0; i < maxRisks; i++ {
 		data = append(data, DataPoint{
-			Value: risks[i].RiskScore,
+			Y:     risks[i].RiskScore,
 			Label: risks[i].Name,
 			Color: vg.getRiskLevelColor(risks[i].Priority),
 		})
@@ -668,5 +660,78 @@ func getDefaultThemes() map[string]ChartTheme {
 			FontFamily:      "Inter, sans-serif",
 			FontSize:        12,
 		},
+	}
+}
+
+// Missing helper methods - stub implementations
+
+func (vg *VisualizationGenerator) createSummaryTableRows(report *ExecutiveReport) [][]interface{} {
+	return [][]interface{}{
+		{"Overall Score", report.ExecutiveSummary.OverallScore.Score, 85.0, "On Target", "↑"},
+		{"Customer Satisfaction", report.PerformanceSection.KPIMetrics.CustomerSatisfaction, 90.0, "Excellent", "↑"},
+		{"Operational Efficiency", report.PerformanceSection.KPIMetrics.OperationalEfficiency, 80.0, "Good", "→"},
+	}
+}
+
+func (vg *VisualizationGenerator) createTrendWidgetData(report *ExecutiveReport) interface{} {
+	return map[string]interface{}{
+		"data":   vg.createPerformanceTrendData(report),
+		"type":   "line",
+		"colors": []string{"#3b82f6"},
+	}
+}
+
+func (vg *VisualizationGenerator) createRiskHeatMapData(report *ExecutiveReport) interface{} {
+	return map[string]interface{}{
+		"data":   vg.createRiskMatrixData(report.RiskMitigation.RiskMatrix),
+		"type":   "heatmap",
+		"colors": []string{"#22c55e", "#f59e0b", "#ef4444", "#dc2626"},
+	}
+}
+
+func (vg *VisualizationGenerator) createPerformanceGauge(report *ExecutiveReport) InteractiveElement {
+	return InteractiveElement{
+		ID:    "performance_gauge",
+		Type:  "gauge",
+		Title: "Overall Performance",
+		Data: map[string]interface{}{
+			"value": report.ExecutiveSummary.OverallScore.Score,
+			"min":   0,
+			"max":   100,
+		},
+		Events: []string{"click"},
+		Options: map[string]interface{}{
+			"showValue": true,
+			"showGrade": true,
+			"animation": true,
+		},
+	}
+}
+
+func (vg *VisualizationGenerator) getGaugeWidgetStyling() map[string]interface{} {
+	return map[string]interface{}{
+		"colors":     []string{"#dc2626", "#f59e0b", "#22c55e", "#3b82f6"},
+		"showValue":  true,
+		"showGrade":  true,
+		"animation":  true,
+	}
+}
+
+func (vg *VisualizationGenerator) getMetricsWidgetStyling() map[string]interface{} {
+	return map[string]interface{}{
+		"layout":     "grid",
+		"columns":    2,
+		"spacing":    16,
+		"showIcons":  true,
+		"showTrends": true,
+	}
+}
+
+func (vg *VisualizationGenerator) getChartWidgetStyling() map[string]interface{} {
+	return map[string]interface{}{
+		"responsive":  true,
+		"showLegend":  true,
+		"showTooltip": true,
+		"animate":     true,
 	}
 }

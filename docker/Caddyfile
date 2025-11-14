@@ -1,0 +1,226 @@
+# ============================================================================
+# Caddy Configuration for Andy Thomas SRE Lab
+# Domain: andythomas-sre.com
+# ============================================================================
+
+# Global options
+{
+	# Enable automatic HTTPS with Let's Encrypt on standard port 443
+	# Email for Let's Encrypt notifications
+	email admin@andythomas-sre.com
+
+	# Enable admin API
+	admin :2019
+
+	# Enable access logs
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
+
+# ============================================================================
+# Main Dashboard - Trading Exchange
+# ============================================================================
+
+andythomas-sre.com {
+	# Main landing page - redirect to dashboard
+	redir / /dashboard 302
+
+	# Trading exchange dashboard
+	reverse_proxy /dashboard* nginx:80
+	reverse_proxy /api/* nginx:80
+	reverse_proxy /static/* nginx:80
+
+	# Health checks
+	reverse_proxy /health nginx:80
+
+	# Logs
+	log {
+		output file /var/log/caddy/main.log
+		format json
+	}
+
+	# Security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	}
+}
+
+# ============================================================================
+# Trading API - Direct Access
+# ============================================================================
+
+api.andythomas-sre.com {
+	reverse_proxy trading-api:8080
+
+	log {
+		output file /var/log/caddy/api.log
+		format json
+	}
+
+	# Enable CORS for API development
+	header {
+		Access-Control-Allow-Origin "*"
+		Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type, Authorization"
+	}
+
+	# Handle OPTIONS preflight requests
+	@options {
+		method OPTIONS
+	}
+	handle @options {
+		respond 204
+	}
+}
+
+# ============================================================================
+# Market Simulator Service
+# ============================================================================
+
+market.andythomas-sre.com {
+	reverse_proxy market-simulator:8081
+
+	log {
+		output file /var/log/caddy/market.log
+		format json
+	}
+}
+
+# ============================================================================
+# Order Flow Simulator Service
+# ============================================================================
+
+orders.andythomas-sre.com {
+	reverse_proxy order-flow-simulator:8082
+
+	log {
+		output file /var/log/caddy/orders.log
+		format json
+	}
+}
+
+# ============================================================================
+# Grafana - Metrics & Dashboards
+# ============================================================================
+
+grafana.andythomas-sre.com {
+	reverse_proxy grafana:3000
+
+	log {
+		output file /var/log/caddy/grafana.log
+		format json
+	}
+
+	# Grafana WebSocket support
+	@websockets {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websockets grafana:3000
+}
+
+# ============================================================================
+# Prometheus - Metrics Collection
+# ============================================================================
+
+prometheus.andythomas-sre.com {
+	reverse_proxy prometheus:9090
+
+	log {
+		output file /var/log/caddy/prometheus.log
+		format json
+	}
+
+	# Basic auth for Prometheus (optional - uncomment and set credentials)
+	# basicauth {
+	#     admin $2a$14$<bcrypt_hash_here>
+	# }
+}
+
+# ============================================================================
+# Status & Monitoring Dashboard
+# ============================================================================
+
+status.andythomas-sre.com {
+	# Custom status page showing all services
+	respond /health 200 {
+		body `{
+			"status": "healthy",
+			"timestamp": "{time.now.unix}",
+			"services": {
+				"trading-api": "https://api.andythomas-sre.com",
+				"market-simulator": "https://market.andythomas-sre.com",
+				"order-flow": "https://orders.andythomas-sre.com",
+				"grafana": "https://grafana.andythomas-sre.com",
+				"prometheus": "https://prometheus.andythomas-sre.com",
+				"dashboard": "https://andythomas-sre.com"
+			}
+		}`
+		close
+	}
+
+	# Redirect root to main dashboard
+	redir / https://andythomas-sre.com
+
+	log {
+		output file /var/log/caddy/status.log
+		format json
+	}
+}
+
+# ============================================================================
+# Docs & Documentation (if you add documentation)
+# ============================================================================
+
+docs.andythomas-sre.com {
+	# Serve static documentation
+	root * /usr/share/caddy/docs
+	file_server
+
+	# Try files, fallback to index
+	try_files {path} {path}/ /index.html
+
+	log {
+		output file /var/log/caddy/docs.log
+		format json
+	}
+}
+
+# ============================================================================
+# WWW Redirect
+# ============================================================================
+
+www.andythomas-sre.com {
+	redir https://andythomas-sre.com{uri} permanent
+}
+
+# ============================================================================
+# Local Development (HTTP only - for testing)
+# ============================================================================
+
+:8888 {
+	# Local admin interface
+	respond "Caddy Admin - Use :2019 for API"
+
+	# Show all active domains
+	respond /domains 200 {
+		body `{
+			"domains": [
+				"andythomas-sre.com",
+				"api.andythomas-sre.com",
+				"market.andythomas-sre.com",
+				"orders.andythomas-sre.com",
+				"grafana.andythomas-sre.com",
+				"prometheus.andythomas-sre.com",
+				"status.andythomas-sre.com",
+				"docs.andythomas-sre.com"
+			]
+		}`
+	}
+}

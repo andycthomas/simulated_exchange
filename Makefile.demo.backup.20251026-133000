@@ -634,7 +634,7 @@ dashboard: ## Open web dashboard in browser
 watch-metrics: ## Live metrics updates (every 5s)
 	@$(ECHO) "$(BLUE)Watching metrics (Ctrl+C to stop)...$(NC)"
 	@$(ECHO) ""
-	@watch -n 5 'curl -s $(METRICS_URL) | jq "{order_count, trade_count, avg_latency, p99_latency, error_rate, orders_per_sec, cpu_usage: .system_metrics.cpu}"'
+	@watch -n 5 'curl -s $(METRICS_URL) | jq ".data | {order_count, trade_count, total_volume, avg_latency, orders_per_sec, trades_per_sec}"'
 
 watch-health: ## Live health check (every 2s)
 	@$(ECHO) "$(BLUE)Watching health (Ctrl+C to stop)...$(NC)"
@@ -643,9 +643,21 @@ watch-health: ## Live health check (every 2s)
 
 watch-logs: ## Tail application logs
 	@if [ -f /tmp/simulated-exchange.log ]; then \
+		$(ECHO) "$(BLUE)Watching application logs (Ctrl+C to stop)...$(NC)"; \
 		tail -f /tmp/simulated-exchange.log; \
 	else \
-		printf '%b\n' "$(RED)Log file not found. Is the application running in background?$(NC)"; \
+		$(ECHO) "$(RED)✗ Log file not found: /tmp/simulated-exchange.log$(NC)"; \
+		$(ECHO) ""; \
+		if ps aux | grep -q "[g]o run.*api/main.go"; then \
+			$(ECHO) "$(YELLOW)The application is running, but not in the expected mode.$(NC)"; \
+			$(ECHO) "$(YELLOW)To enable log watching:$(NC)"; \
+			$(ECHO) "  1. Stop current instances: pkill -f 'go run.*api/main.go'"; \
+			$(ECHO) "  2. Start in background mode: make -f Makefile.demo start-background"; \
+		else \
+			$(ECHO) "$(YELLOW)The application is not running.$(NC)"; \
+			$(ECHO) "$(YELLOW)Start it with: make -f Makefile.demo start-background$(NC)"; \
+		fi; \
+		exit 1; \
 	fi
 
 metrics-snapshot: ## Save current metrics to file
