@@ -13,6 +13,7 @@ import (
 	"simulated_exchange/pkg/config"
 	"simulated_exchange/pkg/database"
 	"simulated_exchange/pkg/messaging"
+	"simulated_exchange/pkg/monitoring"
 	"simulated_exchange/pkg/repository"
 	"simulated_exchange/pkg/shared"
 	"simulated_exchange/services/trading-api/internal/domain"
@@ -41,6 +42,10 @@ type Application struct {
 
 	// HTTP Server
 	server *server.Server
+
+	// Metrics
+	metricsCollector *monitoring.MetricsCollector
+	metricsUpdater   *monitoring.PeriodicMetricsUpdater
 
 	// Lifecycle management
 	ctx       context.Context
@@ -95,6 +100,12 @@ func NewApplication() (*Application, error) {
 		return nil, fmt.Errorf("failed to initialize services: %w", err)
 	}
 
+	// Initialize metrics
+	if err := app.initializeMetrics(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to initialize metrics: %w", err)
+	}
+
 	// Initialize server
 	if err := app.initializeServer(); err != nil {
 		cancel()
@@ -122,6 +133,12 @@ func (a *Application) Start(ctx context.Context) error {
 
 	a.logger.Info("Starting Trading API application")
 	a.startTime = time.Now()
+
+	// Start periodic metrics updates
+	a.metricsUpdater.Start("trading-api")
+
+	// Set initial service health
+	a.metricsCollector.SetServiceHealth("trading-api", true)
 
 	// Subscribe to events
 	if err := a.subscribeToEvents(); err != nil {
@@ -152,6 +169,11 @@ func (a *Application) Stop() error {
 
 	a.logger.Info("Stopping Trading API application")
 	stopStart := time.Now()
+
+	// Stop periodic metrics updates
+	if a.metricsUpdater != nil {
+		a.metricsUpdater.Stop()
+	}
 
 	// Cancel context to signal all goroutines to stop
 	a.cancel()
@@ -257,21 +279,36 @@ func (a *Application) initializeServices() error {
 	return nil
 }
 
+// initializeMetrics sets up metrics collection
+func (a *Application) initializeMetrics() error {
+	a.logger.Info("Initializing metrics")
+
+	// Create metrics collector
+	a.metricsCollector = monitoring.NewMetricsCollector(a.logger)
+
+	// Create periodic metrics updater
+	a.metricsUpdater = monitoring.NewPeriodicMetricsUpdater(a.metricsCollector, a.logger)
+
+	a.logger.Info("Metrics initialized successfully")
+	return nil
+}
+
 // initializeServer sets up the HTTP server
 func (a *Application) initializeServer() error {
 	a.logger.Info("Initializing HTTP server")
 
 	// Create handlers
-	orderHandler := handlers.NewOrderHandler(a.tradingService, a.logger)
+	orderHandler := handlers.NewOrderHandler(a.tradingService, a.metricsCollector, a.logger)
 	healthHandler := handlers.NewHealthHandler(a.db, a.cache, a.logger)
 	metricsHandler := handlers.NewMetricsHandler(a.tradingService, a.logger, time.Now())
 
-	// Create server
+	// Create server (pass our metrics collector so it's exposed via /metrics)
 	a.server = server.NewServer(
 		a.config,
 		orderHandler,
 		healthHandler,
 		metricsHandler,
+		a.metricsCollector,
 		a.logger,
 	)
 

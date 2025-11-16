@@ -4,21 +4,24 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"simulated_exchange/pkg/config"
+	"simulated_exchange/pkg/monitoring"
 	"simulated_exchange/services/order-flow-simulator/internal/handlers"
 )
 
 // Server represents the HTTP server for order flow simulator
 type Server struct {
-	config        *config.Config
-	healthHandler *handlers.HealthHandler
-	flowHandler   *handlers.FlowHandler
-	logger        *slog.Logger
-	router        *gin.Engine
-	httpServer    *http.Server
+	config           *config.Config
+	healthHandler    *handlers.HealthHandler
+	flowHandler      *handlers.FlowHandler
+	metricsCollector *monitoring.MetricsCollector
+	logger           *slog.Logger
+	router           *gin.Engine
+	httpServer       *http.Server
 }
 
 // NewServer creates a new HTTP server
@@ -26,6 +29,7 @@ func NewServer(
 	config *config.Config,
 	healthHandler *handlers.HealthHandler,
 	flowHandler *handlers.FlowHandler,
+	metricsCollector *monitoring.MetricsCollector,
 	logger *slog.Logger,
 ) *Server {
 	// Set Gin mode based on environment
@@ -34,10 +38,11 @@ func NewServer(
 	}
 
 	server := &Server{
-		config:        config,
-		healthHandler: healthHandler,
-		flowHandler:   flowHandler,
-		logger:        logger,
+		config:           config,
+		healthHandler:    healthHandler,
+		flowHandler:      flowHandler,
+		metricsCollector: metricsCollector,
+		logger:           logger,
 	}
 
 	server.setupRouter()
@@ -57,6 +62,26 @@ func (s *Server) setupRouter() {
 	s.router.GET("/health", s.healthHandler.GetHealth)
 	s.router.GET("/ready", s.healthHandler.GetReadiness)
 	s.router.GET("/live", s.healthHandler.GetLiveness)
+
+	// Prometheus metrics endpoint (for Prometheus scraping)
+	s.router.GET("/metrics", gin.WrapH(s.metricsCollector.GetHandler()))
+
+	// pprof debug endpoints (for profiling and flamegraphs)
+	debug := s.router.Group("/debug/pprof")
+	{
+		debug.GET("/", gin.WrapF(pprof.Index))
+		debug.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+		debug.GET("/profile", gin.WrapF(pprof.Profile))
+		debug.POST("/symbol", gin.WrapF(pprof.Symbol))
+		debug.GET("/symbol", gin.WrapF(pprof.Symbol))
+		debug.GET("/trace", gin.WrapF(pprof.Trace))
+		debug.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
+		debug.GET("/block", gin.WrapH(pprof.Handler("block")))
+		debug.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
+		debug.GET("/heap", gin.WrapH(pprof.Handler("heap")))
+		debug.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
+		debug.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+	}
 
 	// API routes
 	api := s.router.Group("/api")

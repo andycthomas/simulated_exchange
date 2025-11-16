@@ -178,10 +178,14 @@ kprobe:vfs_write /comm == "postgres"/ {
 // Interval reporting
 interval:s:5 {
     printf("\n[%s] === I/O Stats (5s) ===\n", strftime("%H:%M:%S", nsecs));
-    printf("Total reads: %lld\n", (int64)@read_count);
-    printf("Total writes: %lld\n", (int64)@write_count);
-    printf("PostgreSQL reads: %lld\n", (int64)@postgres_reads);
-    printf("PostgreSQL writes: %lld\n", (int64)@postgres_writes);
+    printf("Total reads:\n");
+    print(@read_count);
+    printf("Total writes:\n");
+    print(@write_count);
+    printf("PostgreSQL reads:\n");
+    print(@postgres_reads);
+    printf("PostgreSQL writes:\n");
+    print(@postgres_writes);
 
     printf("\nTop I/O by process:\n");
     print(@bytes_issued, 5);

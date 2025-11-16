@@ -211,9 +211,12 @@ tracepoint:skb:kfree_skb {
 // Interval reporting
 interval:s:5 {
     printf("\n[%s] === Network Stats (5s) ===\n", strftime("%H:%M:%S", nsecs));
-    printf("Average RTT: %d us\n", @avg_rtt);
-    printf("Total retransmits: %d\n", @total_retransmits);
-    printf("Packet drops: %d\n", @packet_drops);
+    printf("Average RTT:\n");
+    print(@avg_rtt);
+    printf("Total retransmits:\n");
+    print(@total_retransmits);
+    printf("Packet drops:\n");
+    print(@packet_drops);
 
     printf("\nRetransmits by process:\n");
     print(@retransmits);

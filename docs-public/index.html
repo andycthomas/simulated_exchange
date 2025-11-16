@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulated Exchange - Documentation</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f6f8fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        .header p {
+            margin: 0.5rem 0 0;
+            opacity: 0.9;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .search-box {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .search-box input {
+            width: 100%;
+            max-width: 600px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            border: 2px solid #e1e4e8;
+            border-radius: 6px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-box input:focus {
+            border-color: #667eea;
+        }
+        .category {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .category h2 {
+            margin-top: 0;
+            color: #24292e;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+        .doc-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .doc-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e1e4e8;
+            transition: background-color 0.2s;
+        }
+        .doc-item:last-child {
+            border-bottom: none;
+        }
+        .doc-item:hover {
+            background-color: #f6f8fa;
+        }
+        .doc-item a {
+            color: #0366d6;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 1.1rem;
+        }
+        .doc-item a:hover {
+            text-decoration: underline;
+        }
+        .doc-item p {
+            margin: 0.25rem 0 0;
+            color: #586069;
+            font-size: 0.9rem;
+        }
+        .stats {
+            text-align: center;
+            margin-top: 2rem;
+            color: #586069;
+        }
+        .hidden {
+            display: none;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 3px;
+            margin-left: 0.5rem;
+        }
+        .badge-guide { background: #dff6dd; color: #28a745; }
+        .badge-api { background: #fff5b1; color: #735c0f; }
+        .badge-arch { background: #d1ecf1; color: #0c5460; }
+        .badge-demo { background: #f8d7da; color: #721c24; }
+        .badge-setup { background: #e7e7ff; color: #383874; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📚 Simulated Exchange Documentation</h1>
+        <p>Complete documentation for the Trading Exchange Platform</p>
+    </div>
+
+    <div class="container">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search documentation...">
+        </div>
+
+        <div id="learningDocs" class="category">
+            <h2>🎓 Learning Lab - START HERE</h2>
+            <ul class="doc-list">
+                <li class="doc-item">
+                    <a href="view.html?doc=LEARNING_LAB_PURPOSE.md">LEARNING_LAB_PURPOSE.md <span class="badge badge-guide">Essential Reading</span></a>
+                    <p><strong>⭐ Read this first!</strong> Understand the purpose of this safe learning environment and how it complements your test systems</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=SKILLS_TRANSFERABILITY.md">SKILLS_TRANSFERABILITY.md <span class="badge badge-guide">C++/Python/Java</span></a>
+                    <p><strong>🔄 90% of skills transfer!</strong> How this Go lab teaches SRE techniques that apply directly to C++/Python/Java production systems</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=SRE_ONBOARDING.md">SRE_ONBOARDING.md <span class="badge badge-setup">Quick Start</span></a>
+                    <p>30-minute onboarding guide for new SRE team members - get breaking things safely!</p>
+                </li>
+            </ul>
+        </div>
+
+        <div id="mainDocs" class="category">
+            <h2>📖 Main Documentation</h2>
+            <ul class="doc-list">
+                <li class="doc-item">
+                    <a href="view.html?doc=README.md">README.md <span class="badge badge-guide">Getting Started</span></a>
+                    <p>Main project overview and getting started guide</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=ARCHITECTURE.md">ARCHITECTURE.md <span class="badge badge-arch">Architecture</span></a>
+                    <p>System architecture and design decisions</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=API.md">API.md <span class="badge badge-api">API Reference</span></a>
+                    <p>Complete API reference and endpoints</p>
+                </li>
+            </ul>
+        </div>
+
+        <div id="sreDocs" class="category">
+            <h2>🔥 SRE & Performance</h2>
+            <ul class="doc-list">
+                <li class="doc-item">
+                    <a href="flamegraphs.html">🔥 Flamegraph Analysis Center <span class="badge badge-guide">AI-Powered</span></a>
+                    <p><strong>AI-powered performance profiling analysis</strong> - View interactive flamegraph analyses with optimization recommendations</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=SRE_RUNBOOK.md">SRE_RUNBOOK.md <span class="badge badge-guide">Runbook</span></a>
+                    <p>SRE runbook for operations and incident response</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=SRE_DEMO_GUIDE.md">SRE_DEMO_GUIDE.md <span class="badge badge-demo">Demo</span></a>
+                    <p>Complete guide for SRE demonstrations</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=SRE_DEMO_CHEATSHEET.md">SRE_DEMO_CHEATSHEET.md <span class="badge badge-demo">Quick Ref</span></a>
+                    <p>Quick reference for SRE demo commands</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=FLAMEGRAPH_GUIDE.md">FLAMEGRAPH_GUIDE.md <span class="badge badge-guide">Performance</span></a>
+                    <p>Guide to generating and analyzing flamegraphs</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=PERFORMANCE_SCALING_RECOMMENDATIONS.md">PERFORMANCE_SCALING_RECOMMENDATIONS.md</a>
+                    <p>Performance optimization and scaling recommendations</p>
+                </li>
+            </ul>
+        </div>
+
+        <div id="setupDocs" class="category">
+            <h2>⚙️ Setup & Configuration</h2>
+            <ul class="doc-list">
+                <li class="doc-item">
+                    <a href="view.html?doc=SETUP_COMPLETE.md">SETUP_COMPLETE.md <span class="badge badge-setup">Setup</span></a>
+                    <p>Setup completion checklist and verification</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=MAKEFILE_UNIFIED_GUIDE.md">MAKEFILE_UNIFIED_GUIDE.md <span class="badge badge-guide">Guide</span></a>
+                    <p>Complete guide to Makefile commands and workflows</p>
+                </li>
+                <li class="doc-item">
+                    <a href="view.html?doc=TROUBLESHOOTING.md">TROUBLESHOOTING.md</a>
+                    <p>Common issues and solutions</p>
+                </li>
+            </ul>
+        </div>
+
+        <div id="allDocs" class="category hidden">
+            <h2>📂 All Documentation Files</h2>
+            <ul class="doc-list" id="allDocsList">
+                <!-- Will be populated dynamically -->
+            </ul>
+        </div>
+
+        <div class="stats">
+            <p>Documentation Hub • <a href="https://andythomas-sre.com">Main Site</a> • <a href="https://grafana.andythomas-sre.com">Grafana</a> • <a href="https://flamegraph.andythomas-sre.com">Flamegraphs</a></p>
+        </div>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const categories = document.querySelectorAll('.category');
+
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+
+            categories.forEach(category => {
+                const items = category.querySelectorAll('.doc-item');
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    if (text.includes(searchTerm)) {
+                        item.style.display = '';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+
+                // Hide category if no items match
+                if (visibleCount === 0 && searchTerm) {
+                    category.style.display = 'none';
+                } else {
+                    category.style.display = '';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

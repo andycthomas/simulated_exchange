@@ -325,7 +325,8 @@ fi
 # Wait for API
 log "Checking Trading API..."
 for i in {1..30}; do
-    if curl -sf http://localhost/api/health &> /dev/null; then
+    # Check trading-api directly on port 8080 since Caddy handles port 80
+    if curl -sf http://localhost:8080/health &> /dev/null; then
         log_success "Trading API is ready"
         break
     fi
@@ -393,7 +394,7 @@ section "Step 7/7: Final Verification"
 
 # Test API endpoint
 log "Testing API endpoint..."
-API_RESPONSE=$(curl -sf http://localhost/api/health 2>&1 || echo "failed")
+API_RESPONSE=$(curl -sf http://localhost:8080/health 2>&1 || echo "failed")
 if echo "$API_RESPONSE" | grep -q "healthy"; then
     log_success "API health check: PASS"
 else
@@ -433,8 +434,8 @@ ${BOLD}Setup time: ${SETUP_MINUTES}m ${SETUP_SECONDS}s${NC}
 ${BOLD}${CYAN}Quick Access Links:${NC}
 
   📊 Dashboard:     ${BOLD}http://localhost/${NC}
-  🔌 API:           ${BOLD}http://localhost/api/health${NC}
-  📈 Metrics:       ${BOLD}http://localhost/api/metrics${NC}
+  🔌 API:           ${BOLD}http://localhost:8080/health${NC}
+  📈 Metrics:       ${BOLD}http://localhost:8080/metrics${NC}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

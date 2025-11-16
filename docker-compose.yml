@@ -79,6 +79,8 @@ services:
       - SERVICE_ENVIRONMENT=production
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
+      - SERVER_READ_TIMEOUT=120s
+      - SERVER_WRITE_TIMEOUT=120s
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DATABASE=trading_db
@@ -131,6 +133,8 @@ services:
       - SERVICE_ENVIRONMENT=production
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8081
+      - SERVER_READ_TIMEOUT=120s
+      - SERVER_WRITE_TIMEOUT=120s
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
@@ -176,6 +180,8 @@ services:
       - SERVICE_ENVIRONMENT=production
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8082
+      - SERVER_READ_TIMEOUT=120s
+      - SERVER_WRITE_TIMEOUT=120s
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
@@ -215,8 +221,9 @@ services:
     image: nginx:alpine
     container_name: simulated-exchange-nginx
     restart: unless-stopped
-    ports:
-      - "80:80"
+    # Port 80 removed - Caddy handles external traffic
+    # ports:
+    #   - "80:80"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/ssl:/etc/nginx/ssl:ro
@@ -276,6 +283,36 @@ services:
     profiles:
       - monitoring
 
+  # Caddy reverse proxy for external HTTPS access
+  caddy:
+    image: caddy:2-alpine
+    container_name: simulated-exchange-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+      - "2019:2019"     # Admin API
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./flamegraphs:/flamegraphs:ro
+      - ./docs-public:/usr/share/caddy/docs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    networks:
+      - trading_network
+    depends_on:
+      - nginx
+      - trading-api
+      - market-simulator
+      - order-flow-simulator
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 networks:
   trading_network:
     driver: bridge
@@ -297,4 +334,10 @@ volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  caddy_logs:
     driver: local

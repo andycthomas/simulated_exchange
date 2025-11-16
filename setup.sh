@@ -325,7 +325,8 @@ fi
 # Wait for API
 log "Checking Trading API..."
 for i in {1..30}; do
-    if curl -sf http://localhost/api/health &> /dev/null; then
+    # Check trading-api directly on port 8080 since Caddy handles port 80
+    if curl -sf http://localhost:8080/health &> /dev/null; then
         log_success "Trading API is ready"
         break
     fi

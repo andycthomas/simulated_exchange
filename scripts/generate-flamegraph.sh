@@ -84,7 +84,14 @@ log_success "Service is healthy"
 
 # Determine profile URL and parameters
 case "$PROFILE_TYPE" in
-    cpu|allocs)
+    cpu)
+        if [[ "$DURATION" -le 0 ]]; then
+            log_error "$PROFILE_TYPE profiling requires duration > 0"
+            exit 1
+        fi
+        PROFILE_URL="http://localhost:$PORT/debug/pprof/profile?seconds=$DURATION"
+        ;;
+    allocs)
         if [[ "$DURATION" -le 0 ]]; then
             log_error "$PROFILE_TYPE profiling requires duration > 0"
             exit 1
@@ -112,7 +119,7 @@ else
     log "Capturing $PROFILE_TYPE snapshot..."
 fi
 
-if curl -s "$PROFILE_URL" -o "$PROFILE_FILE"; then
+if curl -s -f "$PROFILE_URL" -o "$PROFILE_FILE"; then
     if [[ -s "$PROFILE_FILE" ]]; then
         SIZE=$(du -h "$PROFILE_FILE" | cut -f1)
         log_success "Profile captured: $PROFILE_FILE ($SIZE)"
@@ -137,13 +144,50 @@ if ! command -v go &> /dev/null; then
     exit 1
 fi
 
-log "Generating SVG flamegraph..."
-if go tool pprof -svg "$PROFILE_FILE" > "$SVG_FILE" 2>&1; then
-    SIZE=$(du -h "$SVG_FILE" | cut -f1)
-    log_success "Flamegraph generated: $SVG_FILE ($SIZE)"
+# Check for FlameGraph tools
+FLAMEGRAPH_DIR="${FLAMEGRAPH_DIR:-$HOME/FlameGraph}"
+if [[ ! -f "$FLAMEGRAPH_DIR/flamegraph.pl" ]]; then
+    log_warn "FlameGraph tools not found at $FLAMEGRAPH_DIR"
+    log_warn "Falling back to go tool pprof -svg (less interactive)"
+
+    log "Generating SVG flamegraph..."
+    if go tool pprof -svg "$PROFILE_FILE" > "$SVG_FILE" 2>&1; then
+        SIZE=$(du -h "$SVG_FILE" | cut -f1)
+        log_success "Flamegraph generated: $SVG_FILE ($SIZE)"
+    else
+        log_error "Failed to generate flamegraph"
+        exit 1
+    fi
 else
-    log_error "Failed to generate flamegraph"
-    exit 1
+    log "Generating interactive flamegraph using Brendan Gregg's tools..."
+
+    # Generate folded stacks from pprof data
+    FOLDED_FILE="${PROFILE_FILE%.pb.gz}.folded"
+
+    # Convert pprof to text format, then fold stacks
+    if go tool pprof -raw "$PROFILE_FILE" 2>/dev/null | \
+       perl "$FLAMEGRAPH_DIR/stackcollapse-go.pl" > "$FOLDED_FILE" 2>&1; then
+
+        # Generate interactive SVG flamegraph
+        if perl "$FLAMEGRAPH_DIR/flamegraph.pl" \
+            --title="$PROFILE_TYPE Profile - $(date)" \
+            --width=1600 \
+            "$FOLDED_FILE" > "$SVG_FILE" 2>&1; then
+
+            SIZE=$(du -h "$SVG_FILE" | cut -f1)
+            log_success "Interactive flamegraph generated: $SVG_FILE ($SIZE)"
+
+            # Clean up intermediate file
+            rm -f "$FOLDED_FILE"
+        else
+            log_error "Failed to generate flamegraph from folded stacks"
+            rm -f "$FOLDED_FILE"
+            exit 1
+        fi
+    else
+        log_error "Failed to generate folded stacks"
+        exit 1
+    fi
 fi
 
 echo ""

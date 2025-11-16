@@ -12,6 +12,7 @@ import (
 	"simulated_exchange/pkg/cache"
 	"simulated_exchange/pkg/config"
 	"simulated_exchange/pkg/messaging"
+	"simulated_exchange/pkg/monitoring"
 	"simulated_exchange/pkg/shared"
 	"simulated_exchange/services/order-flow-simulator/internal/domain"
 	"simulated_exchange/services/order-flow-simulator/internal/handlers"
@@ -35,6 +36,10 @@ type Application struct {
 
 	// HTTP Server (for health checks and control)
 	server *server.Server
+
+	// Metrics
+	metricsCollector *monitoring.MetricsCollector
+	metricsUpdater   *monitoring.PeriodicMetricsUpdater
 
 	// Lifecycle management
 	ctx       context.Context
@@ -86,6 +91,10 @@ func NewApplication() (*Application, error) {
 		return nil, fmt.Errorf("failed to initialize services: %w", err)
 	}
 
+	// Initialize metrics
+	app.metricsCollector = monitoring.NewMetricsCollector(app.logger)
+	app.metricsUpdater = monitoring.NewPeriodicMetricsUpdater(app.metricsCollector, app.logger)
+
 	// Initialize server
 	if err := app.initializeServer(); err != nil {
 		cancel()
@@ -112,6 +121,10 @@ func (a *Application) Start(ctx context.Context) error {
 
 	a.logger.Info("Starting Order Flow Simulator application")
 	a.startTime = time.Now()
+
+	// Start periodic metrics updates
+	a.metricsUpdater.Start("order-flow-simulator")
+	a.metricsCollector.SetServiceHealth("order-flow-simulator", true)
 
 	// Subscribe to events
 	if err := a.subscribeToEvents(); err != nil {
@@ -147,6 +160,11 @@ func (a *Application) Stop() error {
 
 	a.logger.Info("Stopping Order Flow Simulator application")
 	stopStart := time.Now()
+
+	// Stop periodic metrics updates
+	if a.metricsUpdater != nil {
+		a.metricsUpdater.Stop()
+	}
 
 	// Cancel context to signal all goroutines to stop
 	a.cancel()
@@ -262,6 +280,7 @@ func (a *Application) initializeServer() error {
 		a.config,
 		healthHandler,
 		flowHandler,
+		a.metricsCollector,
 		a.logger,
 	)
 

@@ -151,7 +151,8 @@ profile:hz:99 /comm == "trading-api"/ {
 // Interval reporting
 interval:s:5 {
     printf("\n[%s] === CPU Stats ===\n", strftime("%H:%M:%S", nsecs));
-    printf("Context switches (5s): %lld\n", (int64)@context_switches);
+    printf("Context switches (5s):\n");
+    print(@context_switches);
 
     printf("\nTop processes by scheduler wait time:\n");
     print(@total_wait_time, 5);

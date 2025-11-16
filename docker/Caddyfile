@@ -159,6 +159,7 @@ status.andythomas-sre.com {
 				"order-flow": "https://orders.andythomas-sre.com",
 				"grafana": "https://grafana.andythomas-sre.com",
 				"prometheus": "https://prometheus.andythomas-sre.com",
+				"flamegraph": "https://flamegraph.andythomas-sre.com",
 				"dashboard": "https://andythomas-sre.com"
 			}
 		}`
@@ -175,21 +176,65 @@ status.andythomas-sre.com {
 }
 
 # ============================================================================
-# Docs & Documentation (if you add documentation)
+# Docs & Documentation
 # ============================================================================
 
 docs.andythomas-sre.com {
-	# Serve static documentation
+	# Serve static documentation with markdown viewer
 	root * /usr/share/caddy/docs
-	file_server
+	file_server browse
 
 	# Try files, fallback to index
 	try_files {path} {path}/ /index.html
+
+	# Enable directory browsing for markdown files
+	@markdown {
+		path *.md
+	}
+	header @markdown {
+		Content-Type text/markdown; charset=utf-8
+	}
 
 	log {
 		output file /var/log/caddy/docs.log
 		format json
 	}
+}
+
+# ============================================================================
+# Flamegraphs - Performance Profiling Visualization
+# ============================================================================
+
+flamegraph.andythomas-sre.com {
+	# Serve flamegraph files from the host
+	root * /flamegraphs
+	file_server browse
+
+	# Enable directory browsing for easy navigation
+	@svg {
+		path *.svg
+	}
+	header @svg {
+		Content-Type image/svg+xml
+	}
+
+	@markdown {
+		path *.md
+	}
+	header @markdown {
+		Content-Type text/markdown
+	}
+
+	log {
+		output file /var/log/caddy/flamegraph.log
+		format json
+	}
+
+	# Security - basic auth to protect sensitive performance data
+	# Uncomment to enable authentication
+	# basicauth {
+	#     admin $2a$14$<bcrypt_hash_here>
+	# }
 }
 
 # ============================================================================
@@ -219,7 +264,8 @@ www.andythomas-sre.com {
 				"grafana.andythomas-sre.com",
 				"prometheus.andythomas-sre.com",
 				"status.andythomas-sre.com",
-				"docs.andythomas-sre.com"
+				"docs.andythomas-sre.com",
+				"flamegraph.andythomas-sre.com"
 			]
 		}`
 	}

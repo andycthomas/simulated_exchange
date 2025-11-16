@@ -163,40 +163,30 @@ kprobe:tcp_v4_connect {
 
     if ($dport == 0x5000) {  // 80 in big-endian
         @port80_attempts[comm] = count();
+        @connect_port[tid] = 80;
+    } else if ($dport == 0x901F) {  // 8080 in big-endian
+        @port8080_attempts[comm] = count();
+        @connect_port[tid] = 8080;
     }
 }
 
-kretprobe:tcp_v4_connect {
-    $sk = (struct sock *)arg0;
-    $dport = $sk->__sk_common.skc_dport;
+kretprobe:tcp_v4_connect /@connect_port[tid]/ {
+    $port = @connect_port[tid];
 
-    if ($dport == 0x5000) {
+    if ($port == 80) {
         if (retval == 0) {
             @port80_success[comm] = count();
         } else {
             @port80_failures[comm] = count();
             @port80_errno[-retval] = count();
         }
+    } else if ($port == 8080) {
+        if (retval == 0) {
+            @port8080_success[comm] = count();
+        }
     }
-}
 
-// Track connections to port 8080 (direct API)
-kprobe:tcp_v4_connect {
-    $sk = (struct sock *)arg0;
-    $dport = $sk->__sk_common.skc_dport;
-
-    if ($dport == 0x901F) {  // 8080 in big-endian
-        @port8080_attempts[comm] = count();
-    }
-}
-
-kretprobe:tcp_v4_connect {
-    $sk = (struct sock *)arg0;
-    $dport = $sk->__sk_common.skc_dport;
-
-    if ($dport == 0x901F && retval == 0) {
-        @port8080_success[comm] = count();
-    }
+    delete(@connect_port[tid]);
 }
 
 // Track TCP RST packets (connection refused)

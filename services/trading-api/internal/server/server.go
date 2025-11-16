@@ -4,24 +4,27 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"simulated_exchange/pkg/config"
+	"simulated_exchange/pkg/monitoring"
 	"simulated_exchange/services/trading-api/internal/handlers"
 	"simulated_exchange/services/trading-api/internal/middleware"
 )
 
 // Server represents the HTTP server
 type Server struct {
-	config         *config.Config
-	orderHandler   *handlers.OrderHandler
-	healthHandler  *handlers.HealthHandler
-	metricsHandler *handlers.MetricsHandler
-	logger         *slog.Logger
-	router         *gin.Engine
-	httpServer     *http.Server
-	startTime      time.Time
+	config            *config.Config
+	orderHandler      *handlers.OrderHandler
+	healthHandler     *handlers.HealthHandler
+	metricsHandler    *handlers.MetricsHandler
+	metricsCollector  *monitoring.MetricsCollector
+	logger            *slog.Logger
+	router            *gin.Engine
+	httpServer        *http.Server
+	startTime         time.Time
 }
 
 // NewServer creates a new HTTP server
@@ -30,6 +33,7 @@ func NewServer(
 	orderHandler *handlers.OrderHandler,
 	healthHandler *handlers.HealthHandler,
 	metricsHandler *handlers.MetricsHandler,
+	metricsCollector *monitoring.MetricsCollector,
 	logger *slog.Logger,
 ) *Server {
 	// Set Gin mode based on environment
@@ -38,12 +42,13 @@ func NewServer(
 	}
 
 	server := &Server{
-		config:         config,
-		orderHandler:   orderHandler,
-		healthHandler:  healthHandler,
-		metricsHandler: metricsHandler,
-		logger:         logger,
-		startTime:      time.Now(),
+		config:           config,
+		orderHandler:     orderHandler,
+		healthHandler:    healthHandler,
+		metricsHandler:   metricsHandler,
+		metricsCollector: metricsCollector,
+		logger:           logger,
+		startTime:        time.Now(),
 	}
 
 	server.setupRouter()
@@ -64,6 +69,26 @@ func (s *Server) setupRouter() {
 	s.router.GET("/health", s.healthHandler.GetHealth)
 	s.router.GET("/ready", s.healthHandler.GetReadiness)
 	s.router.GET("/live", s.healthHandler.GetLiveness)
+
+	// Prometheus metrics endpoint (for Prometheus scraping)
+	s.router.GET("/metrics", gin.WrapH(s.metricsCollector.GetHandler()))
+
+	// pprof debug endpoints (for profiling and flamegraphs)
+	debug := s.router.Group("/debug/pprof")
+	{
+		debug.GET("/", gin.WrapF(pprof.Index))
+		debug.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+		debug.GET("/profile", gin.WrapF(pprof.Profile))
+		debug.POST("/symbol", gin.WrapF(pprof.Symbol))
+		debug.GET("/symbol", gin.WrapF(pprof.Symbol))
+		debug.GET("/trace", gin.WrapF(pprof.Trace))
+		debug.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
+		debug.GET("/block", gin.WrapH(pprof.Handler("block")))
+		debug.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
+		debug.GET("/heap", gin.WrapH(pprof.Handler("heap")))
+		debug.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
+		debug.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+	}
 
 	// API routes
 	api := s.router.Group("/api")

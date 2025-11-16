@@ -833,9 +833,9 @@ chaos-logs: ## View chaos experiment logs
 
 .PHONY: profile-cpu profile-cpu-long profile-heap profile-goroutine profile-allocs profile-block profile-mutex profile-all chaos-flamegraph profile-view profile-clean profile-serve profile-analyze profile-help
 
-profile-cpu: ## Generate CPU flamegraph (30 seconds)
+profile-cpu: ## Generate CPU flamegraph (3 seconds)
 	@echo "🔥 Generating CPU flamegraph..."
-	@./scripts/generate-flamegraph.sh cpu 30 8080
+	@./scripts/generate-flamegraph.sh cpu 3 8080
 
 profile-cpu-long: ## Generate CPU flamegraph (60 seconds)
 	@echo "🔥 Generating CPU flamegraph (60s)..."

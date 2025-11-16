@@ -1,0 +1,29 @@
+Top 20 functions by CPU time for cpu_baseline_20251116-192635:
+=====================================================
+File: trading-api
+Type: cpu
+Time: 2025-11-16 19:26:35 UTC
+Duration: 30.05s, Total samples = 240ms (  0.8%)
+Showing nodes accounting for 230ms, 95.83% of 240ms total
+Showing top 20 nodes out of 119
+      flat  flat%   sum%        cum   cum%
+      30ms 12.50% 12.50%       30ms 12.50%  runtime.futex
+      20ms  8.33% 20.83%       20ms  8.33%  internal/runtime/syscall.Syscall6
+      10ms  4.17% 25.00%       10ms  4.17%  encoding/json.(*decodeState).rescanLiteral
+      10ms  4.17% 29.17%       30ms 12.50%  encoding/json.ptrEncoder.encode
+      10ms  4.17% 33.33%       10ms  4.17%  github.com/redis/go-redis/v9/internal/proto.(*Reader).Buffered
+      10ms  4.17% 37.50%       10ms  4.17%  internal/abi.Name.Name
+      10ms  4.17% 41.67%       10ms  4.17%  internal/poll.(*FD).Read
+      10ms  4.17% 45.83%       10ms  4.17%  math.IsInf (inline)
+      10ms  4.17% 50.00%       10ms  4.17%  net.(*conn).SetDeadline
+      10ms  4.17% 54.17%       20ms  8.33%  reflect.(*rtype).Name
+      10ms  4.17% 58.33%       10ms  4.17%  reflect.(*rtype).exportedMethods
+      10ms  4.17% 62.50%       10ms  4.17%  reflect.Value.Field
+      10ms  4.17% 66.67%       10ms  4.17%  runtime.(*guintptr).cas (inline)
+      10ms  4.17% 70.83%       10ms  4.17%  runtime.(*mspan).writeHeapBitsSmall
+      10ms  4.17% 75.00%       60ms 25.00%  runtime.findRunnable
+      10ms  4.17% 79.17%       30ms 12.50%  runtime.notesleep
+      10ms  4.17% 83.33%       10ms  4.17%  runtime.scanobject
+      10ms  4.17% 87.50%       10ms  4.17%  runtime.selectgo
+      10ms  4.17% 91.67%       10ms  4.17%  strconv.Atoi
+      10ms  4.17% 95.83%       10ms  4.17%  strconv.readFloat

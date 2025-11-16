@@ -4,22 +4,26 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"simulated_exchange/pkg/monitoring"
 	"simulated_exchange/pkg/shared"
 )
 
 // OrderHandler handles order-related HTTP requests
 type OrderHandler struct {
-	tradingService shared.TradingService
-	logger         *slog.Logger
+	tradingService   shared.TradingService
+	metricsCollector *monitoring.MetricsCollector
+	logger           *slog.Logger
 }
 
 // NewOrderHandler creates a new order handler
-func NewOrderHandler(tradingService shared.TradingService, logger *slog.Logger) *OrderHandler {
+func NewOrderHandler(tradingService shared.TradingService, metricsCollector *monitoring.MetricsCollector, logger *slog.Logger) *OrderHandler {
 	return &OrderHandler{
-		tradingService: tradingService,
-		logger:         logger,
+		tradingService:   tradingService,
+		metricsCollector: metricsCollector,
+		logger:           logger,
 	}
 }
 
@@ -85,6 +89,7 @@ type APIError struct {
 
 // PlaceOrder handles POST /api/orders
 func (h *OrderHandler) PlaceOrder(c *gin.Context) {
+	startTime := time.Now()
 	var req PlaceOrderRequest
 
 	// Bind and validate JSON request
@@ -125,8 +130,15 @@ func (h *OrderHandler) PlaceOrder(c *gin.Context) {
 
 	// Call service layer
 	placedOrder, err := h.tradingService.PlaceOrder(c.Request.Context(), order)
+	processingTime := time.Since(startTime)
+
 	if err != nil {
 		h.logger.Error("Failed to place order", "error", err, "user_id", req.UserID)
+
+		// Record failed order metric
+		if h.metricsCollector != nil {
+			h.metricsCollector.RecordOrder("trading-api", req.Type, req.Side, "failed", processingTime)
+		}
 
 		// Handle different error types
 		var apiError *APIError
@@ -156,6 +168,16 @@ func (h *OrderHandler) PlaceOrder(c *gin.Context) {
 			Error:   apiError,
 		})
 		return
+	}
+
+	// Record successful order metrics
+	if h.metricsCollector != nil {
+		h.metricsCollector.RecordOrder("trading-api", req.Type, req.Side, string(placedOrder.Status), processingTime)
+
+		// If order was filled, record trade
+		if placedOrder.Status == shared.OrderStatusFilled {
+			h.metricsCollector.RecordTrade("trading-api", req.Symbol)
+		}
 	}
 
 	// Return success response
